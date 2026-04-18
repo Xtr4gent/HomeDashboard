@@ -42,7 +42,7 @@ export async function loginAction(formData: FormData): Promise<void> {
     redirect("/login?error=invalid_credentials");
   }
 
-  await createSession(user);
+  await createSession({ userId: user.id, username: user.username });
   redirect("/");
 }
 
