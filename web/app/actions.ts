@@ -31,7 +31,13 @@ export async function loginAction(formData: FormData): Promise<void> {
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
 
-  const user = await authenticateUser(username, password);
+  let user: { id: string; username: string } | null = null;
+  try {
+    user = await authenticateUser(username, password);
+  } catch {
+    redirect("/login?error=auth_unavailable");
+  }
+
   if (!user) {
     redirect("/login?error=invalid_credentials");
   }

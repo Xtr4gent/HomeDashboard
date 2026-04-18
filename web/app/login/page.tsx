@@ -15,6 +15,7 @@ export default async function LoginPage({ searchParams }: Props) {
 
   const params = await searchParams;
   const showError = params.error === "invalid_credentials";
+  const showAuthUnavailable = params.error === "auth_unavailable";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f7f9fc] px-4">
@@ -24,6 +25,11 @@ export default async function LoginPage({ searchParams }: Props) {
         {showError ? (
           <p className="mt-4 rounded-md border border-[#fbcaca] bg-[#fff4f4] px-3 py-2 text-sm text-[#b91c1c]">
             Invalid username or password.
+          </p>
+        ) : null}
+        {showAuthUnavailable ? (
+          <p className="mt-4 rounded-md border border-[#fbcaca] bg-[#fff4f4] px-3 py-2 text-sm text-[#b91c1c]">
+            Login is temporarily unavailable. Please check database setup and try again.
           </p>
         ) : null}
         <form action={loginAction} className="mt-4 grid gap-3">
