@@ -98,4 +98,16 @@
 **Priority:** P2
 **Depends on:** None
 
+### Local Database Bootstrap Guide for QA
+
+**What:** Add a short developer setup guide for local Postgres (`db:push`, `db:seed`) so QA can run full authenticated flows without runtime DB errors.
+
+**Why:** QA found that login flow degrades correctly now, but complete dashboard behavior still depends on local DB bootstrap clarity.
+
+**Context:** `/qa` run on 2026-04-18 fixed crash handling, but surfaced setup friction when database is not provisioned locally.
+
+**Effort:** S
+**Priority:** P1
+**Depends on:** None
+
 ## Completed
