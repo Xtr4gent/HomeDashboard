@@ -71,7 +71,7 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     },
   });
 
-  const upgrades = await prisma.upgrade.findMany({
+  const upgrades: DashboardData["upgrades"] = await prisma.upgrade.findMany({
     where: {
       loggedAt: {
         gte: new Date(`${monthKey}-01T00:00:00.000Z`),
@@ -83,7 +83,7 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     orderBy: { loggedAt: "desc" },
   });
 
-  const mappedBills = bills.map((bill) => {
+  const mappedBills: DashboardBill[] = bills.map((bill: (typeof bills)[number]) => {
     const dueDate = dueDateForMonth(bill.recurrenceRule, year, month);
     const isPaid = bill.payments.length > 0;
     return {
