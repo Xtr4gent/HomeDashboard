@@ -13,7 +13,27 @@ const prepEnv = z
 const adapter = new PrismaPg({ connectionString: prepEnv.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
+async function hasSourceScenarioColumn(tableName: "Bill" | "Upgrade"): Promise<boolean> {
+  const rows = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = ${tableName}
+        AND column_name = 'sourceScenarioItemId'
+    ) AS "exists";
+  `;
+
+  return rows[0]?.exists === true;
+}
+
 async function clearDuplicateSourceIds(tableName: "Bill" | "Upgrade"): Promise<number> {
+  const hasColumn = await hasSourceScenarioColumn(tableName);
+  if (!hasColumn) {
+    console.log(`Skipped ${tableName} duplicate cleanup, sourceScenarioItemId is not present yet.`);
+    return 0;
+  }
+
   const result = await prisma.$executeRawUnsafe(`
     WITH ranked AS (
       SELECT
