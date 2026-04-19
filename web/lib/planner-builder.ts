@@ -1,4 +1,3 @@
-import { toCents } from "@/lib/money";
 import {
   projectFinancedItem,
   projectOneTimeItem,
@@ -6,6 +5,14 @@ import {
   type ScenarioProjectionItem,
 } from "@/lib/planner-math";
 import type { PlannerInput } from "@/lib/planner-schema";
+
+function toPlannerCents(amount: number): number {
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new Error("Amount must be zero or greater.");
+  }
+
+  return Math.round(amount * 100);
+}
 
 function toBps(annualRatePct: number): number {
   return Math.round(annualRatePct * 100);
@@ -17,25 +24,25 @@ export function buildScenarioProjectionItems(input: PlannerInput): ScenarioProje
       kind: "recurring",
       label: "Property Tax",
       category: "tax",
-      ...projectRecurringItem({ monthlyAmountCents: toCents(input.propertyTaxMonthly) }),
+      ...projectRecurringItem({ monthlyAmountCents: toPlannerCents(input.propertyTaxMonthly) }),
     },
     {
       kind: "recurring",
       label: "Insurance",
       category: "insurance",
-      ...projectRecurringItem({ monthlyAmountCents: toCents(input.insuranceMonthly) }),
+      ...projectRecurringItem({ monthlyAmountCents: toPlannerCents(input.insuranceMonthly) }),
     },
     {
       kind: "recurring",
       label: "Utilities",
       category: "utility",
-      ...projectRecurringItem({ monthlyAmountCents: toCents(input.utilitiesMonthly) }),
+      ...projectRecurringItem({ monthlyAmountCents: toPlannerCents(input.utilitiesMonthly) }),
     },
     {
       kind: "recurring",
       label: "Other Monthly",
       category: "other",
-      ...projectRecurringItem({ monthlyAmountCents: toCents(input.otherMonthly) }),
+      ...projectRecurringItem({ monthlyAmountCents: toPlannerCents(input.otherMonthly) }),
     },
   ];
 
@@ -44,11 +51,11 @@ export function buildScenarioProjectionItems(input: PlannerInput): ScenarioProje
       kind: "financed",
       label: "Mortgage",
       category: "mortgage",
-      principalCents: toCents(input.mortgagePrincipal),
+      principalCents: toPlannerCents(input.mortgagePrincipal),
       annualRateBps: toBps(input.mortgageRateAnnualPct),
       termMonths: input.mortgageTermMonths,
       ...projectFinancedItem({
-        principalCents: toCents(input.mortgagePrincipal),
+        principalCents: toPlannerCents(input.mortgagePrincipal),
         annualRateBps: toBps(input.mortgageRateAnnualPct),
         termMonths: input.mortgageTermMonths,
       }),
@@ -60,11 +67,11 @@ export function buildScenarioProjectionItems(input: PlannerInput): ScenarioProje
       kind: "financed",
       label: "Upgrade Financing",
       category: "upgrade",
-      principalCents: toCents(input.upgradeOneTimeCost),
+      principalCents: toPlannerCents(input.upgradeOneTimeCost),
       annualRateBps: toBps(input.upgradeRateAnnualPct),
       termMonths: input.upgradeSpreadMonths,
       ...projectFinancedItem({
-        principalCents: toCents(input.upgradeOneTimeCost),
+        principalCents: toPlannerCents(input.upgradeOneTimeCost),
         annualRateBps: toBps(input.upgradeRateAnnualPct),
         termMonths: input.upgradeSpreadMonths,
       }),
@@ -77,7 +84,7 @@ export function buildScenarioProjectionItems(input: PlannerInput): ScenarioProje
           kind: "one_time",
           label: "Upgrade Principal",
           category: "upgrade",
-          ...projectOneTimeItem(toCents(input.upgradeOneTimeCost)),
+          ...projectOneTimeItem(toPlannerCents(input.upgradeOneTimeCost)),
         },
       ]
     : [];
