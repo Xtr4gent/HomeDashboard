@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { setClockForTests } from "@/lib/clock";
+import { resetClockForTests, setClockForTests } from "@/lib/clock";
 
 const redirectMock = vi.fn((target: string) => {
   throw new Error(`REDIRECT:${target}`);
@@ -62,11 +62,11 @@ describe("planner action hardening", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSessionMock.mockResolvedValue({ userId: "user-1", username: "Gabe" });
-    setClockForTests(null);
+    resetClockForTests();
   });
 
   afterEach(() => {
-    setClockForTests(null);
+    resetClockForTests();
   });
 
   test("saveScenarioAction uses one request timestamp for recurrence defaults", async () => {
