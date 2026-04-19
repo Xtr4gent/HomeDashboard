@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  buildMonthlyRecurrenceRule,
   dateDiffInDays,
   dueDateForMonth,
   monthKeyFromDate,
@@ -26,5 +27,13 @@ describe("time helpers", () => {
   test("calculates due soon windows deterministically", () => {
     expect(dateDiffInDays("2026-04-10", "2026-04-17")).toBe(7);
     expect(dateDiffInDays("2026-04-10", "2026-04-19")).toBe(9);
+  });
+
+  test("builds recurrence rules from friendly inputs", () => {
+    expect(buildMonthlyRecurrenceRule("monthly_last_day")).toBe("monthly_last_day");
+    expect(buildMonthlyRecurrenceRule("monthly_day", 9)).toBe("monthly_day_9");
+    expect(() => buildMonthlyRecurrenceRule("monthly_day", 40)).toThrowError(
+      "Due day must be between 1 and 31 for monthly day recurrence.",
+    );
   });
 });

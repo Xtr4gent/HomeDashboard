@@ -6,6 +6,8 @@ import {
   monthKeyFromDate,
 } from "@/lib/time";
 
+const UTILITY_CATEGORIES = new Set(["utility", "water", "hydro", "gas", "internet"]);
+
 export type BillStatus = "paid_this_month" | "overdue" | "due_soon" | "unpaid_this_month";
 
 export type DashboardBill = {
@@ -25,6 +27,7 @@ export type DashboardData = {
   utilitiesTotalCents: number;
   upgradesTotalCents: number;
   totalMonthlyCostCents: number;
+  projectedYearlyCostCents: number;
   overdueCount: number;
   dueSoonCount: number;
   unpaidCount: number;
@@ -53,6 +56,10 @@ function getStatus(args: { dueDate: string; todayDate: string; isPaid: boolean }
   }
 
   return "unpaid_this_month";
+}
+
+export function projectedYearlyCost(totalMonthlyCostCents: number): number {
+  return totalMonthlyCostCents * 12;
 }
 
 export async function getDashboardData(now = new Date()): Promise<DashboardData> {
@@ -98,7 +105,7 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
   });
 
   const utilitiesTotalCents = mappedBills
-    .filter((bill) => bill.category.toLowerCase() === "utility")
+    .filter((bill) => UTILITY_CATEGORIES.has(bill.category.toLowerCase()))
     .reduce((sum, bill) => sum + bill.amountCents, 0);
   const upgradesTotalCents = upgrades.reduce((sum, upgrade) => sum + upgrade.costCents, 0);
   const totalMonthlyCostCents =
@@ -111,6 +118,7 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     utilitiesTotalCents,
     upgradesTotalCents,
     totalMonthlyCostCents,
+    projectedYearlyCostCents: projectedYearlyCost(totalMonthlyCostCents),
     overdueCount: mappedBills.filter((bill) => bill.status === "overdue").length,
     dueSoonCount: mappedBills.filter((bill) => bill.status === "due_soon").length,
     unpaidCount: mappedBills.filter((bill) => bill.status === "unpaid_this_month").length,

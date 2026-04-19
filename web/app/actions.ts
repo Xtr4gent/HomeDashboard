@@ -8,13 +8,15 @@ import { authenticateUser } from "@/lib/auth/user-auth";
 import { clearSession, createSession, getSession } from "@/lib/auth/session";
 import { toCents } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { monthKeyFromDate } from "@/lib/time";
+import { buildMonthlyRecurrenceRule, monthKeyFromDate } from "@/lib/time";
 
 const addBillSchema = z.object({
   name: z.string().min(1),
   category: z.string().min(1),
   amount: z.string().min(1),
-  recurrenceRule: z.enum(["monthly_last_day"]).or(z.string().regex(/^monthly_day_([1-9]|[12]\d|3[01])$/)),
+  recurrenceRule: z.string().optional(),
+  recurrenceMode: z.enum(["monthly_day", "monthly_last_day"]).optional(),
+  dueDay: z.coerce.number().int().min(1).max(31).optional(),
 });
 
 const addUpgradeSchema = z.object({
@@ -65,11 +67,25 @@ export async function addBillAction(formData: FormData): Promise<void> {
     name: String(formData.get("name") ?? ""),
     category: String(formData.get("category") ?? ""),
     amount: String(formData.get("amount") ?? ""),
-    recurrenceRule: String(formData.get("recurrenceRule") ?? ""),
+    recurrenceRule: String(formData.get("recurrenceRule") ?? "").trim() || undefined,
+    recurrenceMode: String(formData.get("recurrenceMode") ?? "").trim() || undefined,
+    dueDay: String(formData.get("dueDay") ?? "").trim() || undefined,
   });
 
   if (!parsed.success) {
     redirect("/?error=invalid_bill_input");
+  }
+
+  let recurrenceRule = parsed.data.recurrenceRule?.trim();
+  if (!recurrenceRule) {
+    if (!parsed.data.recurrenceMode) {
+      redirect("/?error=invalid_bill_input");
+    }
+    try {
+      recurrenceRule = buildMonthlyRecurrenceRule(parsed.data.recurrenceMode, parsed.data.dueDay);
+    } catch {
+      redirect("/?error=invalid_bill_input");
+    }
   }
 
   await prisma.bill.create({
@@ -77,7 +93,7 @@ export async function addBillAction(formData: FormData): Promise<void> {
       name: parsed.data.name.trim(),
       category: parsed.data.category.trim(),
       amountCents: toCents(parsed.data.amount),
-      recurrenceRule: parsed.data.recurrenceRule,
+      recurrenceRule,
     },
   });
 

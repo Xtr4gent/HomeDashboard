@@ -4,6 +4,8 @@ export type ParsedRecurrence =
   | { kind: "monthly_day"; day: number }
   | { kind: "monthly_last_day" };
 
+export type MonthlyRecurrenceMode = "monthly_day" | "monthly_last_day";
+
 const tzFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: env.APP_TIMEZONE,
   year: "numeric",
@@ -37,6 +39,19 @@ export function parseRecurrenceRule(rule: string): ParsedRecurrence {
   }
 
   throw new Error(`Invalid recurrence rule: ${rule}`);
+}
+
+export function buildMonthlyRecurrenceRule(mode: MonthlyRecurrenceMode, dueDay?: number): string {
+  if (mode === "monthly_last_day") {
+    return "monthly_last_day";
+  }
+
+  const parsedDay = Number(dueDay);
+  if (Number.isInteger(parsedDay) && parsedDay >= 1 && parsedDay <= 31) {
+    return `monthly_day_${parsedDay}`;
+  }
+
+  throw new Error("Due day must be between 1 and 31 for monthly day recurrence.");
 }
 
 export function daysInMonth(year: number, month: number): number {

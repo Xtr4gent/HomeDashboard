@@ -57,10 +57,14 @@ export default async function Home({ searchParams }: Props) {
           </p>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-3">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <article className="rounded-xl border border-[#dbe2ea] bg-white p-4">
             <p className="text-sm text-[#5f7387]">Total monthly home cost</p>
             <p className="mt-1 text-2xl font-semibold">{formatCurrency(dashboard.totalMonthlyCostCents)}</p>
+          </article>
+          <article className="rounded-xl border border-[#dbe2ea] bg-white p-4">
+            <p className="text-sm text-[#5f7387]">Projected yearly home cost</p>
+            <p className="mt-1 text-2xl font-semibold">{formatCurrency(dashboard.projectedYearlyCostCents)}</p>
           </article>
           <article className="rounded-xl border border-[#dbe2ea] bg-white p-4">
             <p className="text-sm text-[#5f7387]">Utilities total</p>
@@ -112,19 +116,30 @@ export default async function Home({ searchParams }: Props) {
             <form action={addBillAction} className="grid gap-2 rounded-md border border-[#dbe2ea] bg-[#f9fbfd] p-3">
               <p className="text-sm font-medium">Quick add bill</p>
               <input name="name" placeholder="Bill name" className="rounded border border-[#dbe2ea] px-3 py-2" />
-              <input
-                name="category"
-                placeholder="Category (utility, mortgage, insurance...)"
-                className="rounded border border-[#dbe2ea] px-3 py-2"
-              />
+              <select name="category" defaultValue="water" className="rounded border border-[#dbe2ea] px-3 py-2">
+                <option value="water">Water</option>
+                <option value="hydro">Hydro</option>
+                <option value="gas">Gas</option>
+                <option value="internet">Internet</option>
+                <option value="insurance">Insurance</option>
+                <option value="mortgage">Mortgage</option>
+                <option value="other">Other</option>
+              </select>
               <input
                 name="amount"
                 placeholder="Amount (e.g. 145.50)"
                 className="rounded border border-[#dbe2ea] px-3 py-2"
               />
+              <select name="recurrenceMode" defaultValue="monthly_day" className="rounded border border-[#dbe2ea] px-3 py-2">
+                <option value="monthly_day">Monthly on a fixed day</option>
+                <option value="monthly_last_day">Monthly on the last day</option>
+              </select>
               <input
-                name="recurrenceRule"
-                placeholder="monthly_day_15 or monthly_last_day"
+                type="number"
+                name="dueDay"
+                defaultValue="15"
+                min={1}
+                max={31}
                 className="rounded border border-[#dbe2ea] px-3 py-2"
               />
               <button type="submit" className="rounded bg-[#1f2a37] px-3 py-2 text-sm font-medium text-white">
