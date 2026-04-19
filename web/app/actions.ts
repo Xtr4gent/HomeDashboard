@@ -15,6 +15,7 @@ import {
   projectFinancedItem,
 } from "@/lib/planner-math";
 import { plannerInputSchema } from "@/lib/planner-schema";
+import { normalizeProjectionCategory, resolveProjectionMonthKey } from "@/lib/projections";
 import { prisma } from "@/lib/prisma";
 import { buildRecurrenceRule, monthKeyFromDate } from "@/lib/time";
 
@@ -37,6 +38,17 @@ const addUpgradeSchema = z.object({
 
 const paymentSchema = z.object({
   billId: z.string().min(1),
+});
+
+const saveProjectionSchema = z.object({
+  monthKey: z.string().min(1),
+  category: z.string().min(1),
+  planned: z.string().min(1),
+  actual: z.string().optional(),
+});
+
+const deleteProjectionSchema = z.object({
+  projectionId: z.string().min(1),
 });
 
 export async function loginAction(formData: FormData): Promise<void> {
@@ -195,6 +207,77 @@ export async function addUpgradeAction(formData: FormData): Promise<void> {
   void processQueuedAnalyticsJobs({ limit: 2 });
 
   revalidatePath("/");
+}
+
+export async function saveUtilityProjectionAction(formData: FormData): Promise<void> {
+  await requireSession();
+
+  const parsed = saveProjectionSchema.safeParse({
+    monthKey: String(formData.get("monthKey") ?? ""),
+    category: String(formData.get("category") ?? ""),
+    planned: String(formData.get("planned") ?? ""),
+    actual: String(formData.get("actual") ?? "").trim() || undefined,
+  });
+
+  if (!parsed.success) {
+    redirect("/projections?error=invalid_projection_input");
+  }
+
+  const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
+  const category = normalizeProjectionCategory(parsed.data.category);
+  if (!category) {
+    redirect(`/projections?month=${encodeURIComponent(monthKey)}&error=invalid_projection_category`);
+  }
+
+  let plannedCents = 0;
+  let actualCents: number | null = null;
+  try {
+    plannedCents = toCents(parsed.data.planned, { allowZero: true });
+    actualCents = parsed.data.actual ? toCents(parsed.data.actual, { allowZero: true }) : null;
+  } catch {
+    redirect(`/projections?month=${encodeURIComponent(monthKey)}&error=invalid_projection_amount`);
+  }
+
+  await prisma.utilityProjection.upsert({
+    where: {
+      monthKey_category: {
+        monthKey,
+        category,
+      },
+    },
+    create: {
+      monthKey,
+      category,
+      plannedCents,
+      actualCents,
+    },
+    update: {
+      plannedCents,
+      actualCents,
+    },
+  });
+
+  revalidatePath("/projections");
+}
+
+export async function deleteUtilityProjectionAction(formData: FormData): Promise<void> {
+  await requireSession();
+
+  const parsed = deleteProjectionSchema.safeParse({
+    projectionId: String(formData.get("projectionId") ?? ""),
+  });
+
+  if (!parsed.success) {
+    redirect("/projections?error=invalid_projection_delete");
+  }
+
+  await prisma.utilityProjection.delete({
+    where: { id: parsed.data.projectionId },
+  }).catch(() => {
+    // Projection may already be deleted in another tab.
+  });
+
+  revalidatePath("/projections");
 }
 
 export async function saveScenarioAction(formData: FormData): Promise<void> {

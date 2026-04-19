@@ -183,6 +183,12 @@ export default async function PlannerPage({ searchParams }: Props) {
               <span className="rounded-md bg-[color:var(--app-accent)] px-3 py-1 text-xs font-semibold text-white">
                 Planner Lab
               </span>
+              <Link
+                href="/projections"
+                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
+              >
+                Projections
+              </Link>
             </div>
           </div>
           <form action={logoutAction}>

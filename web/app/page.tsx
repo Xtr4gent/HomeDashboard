@@ -58,6 +58,12 @@ export default async function Home({ searchParams }: Props) {
               >
                 Planner Lab
               </Link>
+              <Link
+                href="/projections"
+                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
+              >
+                Projections
+              </Link>
             </div>
           </div>
           <form action={logoutAction}>
