@@ -5,6 +5,7 @@ import { applyScenarioAction, logoutAction, saveScenarioAction } from "@/app/act
 import { getSession } from "@/lib/auth/session";
 import { formatCurrency } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { type RecurrenceMode, parseRecurrenceRule } from "@/lib/time";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -25,6 +26,10 @@ type PlannerFormDefaults = {
   upgradeOneTimeCost: string;
   upgradeSpreadMonths: string;
   upgradeRateAnnualPct: string;
+  recurrenceMode: RecurrenceMode;
+  dueDay: string;
+  secondDueDay: string;
+  dueMonth: string;
 };
 
 type ScenarioDraft = {
@@ -42,6 +47,7 @@ type ScenarioDraft = {
     amountCents: number;
     annualRateBps: number | null;
     termMonths: number | null;
+    recurrenceRule: string | null;
   }[];
 };
 
@@ -64,6 +70,10 @@ function defaultsFromScenario(scenario: ScenarioDraft | null): PlannerFormDefaul
       upgradeOneTimeCost: "0",
       upgradeSpreadMonths: "60",
       upgradeRateAnnualPct: "6.50",
+      recurrenceMode: "monthly_day",
+      dueDay: "15",
+      secondDueDay: "28",
+      dueMonth: "1",
     };
   }
 
@@ -73,6 +83,36 @@ function defaultsFromScenario(scenario: ScenarioDraft | null): PlannerFormDefaul
   const insurance = scenario.items.find((item) => item.label === "Insurance");
   const utilities = scenario.items.find((item) => item.label === "Utilities");
   const other = scenario.items.find((item) => item.label === "Other Monthly");
+  const recurrenceSource = scenario.items.find((item) => item.recurrenceRule) ?? null;
+  let recurrenceMode: RecurrenceMode = "monthly_day";
+  let dueDay = "15";
+  let secondDueDay = "28";
+  let dueMonth = "1";
+
+  if (recurrenceSource?.recurrenceRule) {
+    try {
+      const parsedRecurrence = parseRecurrenceRule(recurrenceSource.recurrenceRule);
+      if (parsedRecurrence.kind === "monthly_last_day") {
+        recurrenceMode = "monthly_last_day";
+      }
+      if (parsedRecurrence.kind === "monthly_day") {
+        recurrenceMode = "monthly_day";
+        dueDay = String(parsedRecurrence.day);
+      }
+      if (parsedRecurrence.kind === "semi_monthly") {
+        recurrenceMode = "semi_monthly";
+        dueDay = String(parsedRecurrence.firstDay);
+        secondDueDay = String(parsedRecurrence.secondDay);
+      }
+      if (parsedRecurrence.kind === "yearly") {
+        recurrenceMode = "yearly";
+        dueDay = String(parsedRecurrence.day);
+        dueMonth = String(parsedRecurrence.month);
+      }
+    } catch {
+      // Keep defaults when older/invalid recurrence values are encountered.
+    }
+  }
 
   return {
     scenarioId: scenario.id,
@@ -89,6 +129,10 @@ function defaultsFromScenario(scenario: ScenarioDraft | null): PlannerFormDefaul
     upgradeOneTimeCost: upgrade ? asAmount(upgrade.amountCents) : "0",
     upgradeSpreadMonths: String(upgrade?.termMonths ?? 60),
     upgradeRateAnnualPct: upgrade?.annualRateBps ? (upgrade.annualRateBps / 100).toFixed(2) : "6.50",
+    recurrenceMode,
+    dueDay,
+    secondDueDay,
+    dueMonth,
   };
 }
 
@@ -228,6 +272,52 @@ export default async function PlannerPage({ searchParams }: Props) {
               <label className="grid gap-1 text-sm">
                 Upgrade annual rate %
                 <input name="upgradeRateAnnualPct" defaultValue={defaults.upgradeRateAnnualPct} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                Recurrence mode
+                <select
+                  name="recurrenceMode"
+                  defaultValue={defaults.recurrenceMode}
+                  className="rounded border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
+                >
+                  <option value="monthly_day">Monthly on fixed day</option>
+                  <option value="monthly_last_day">Monthly on last day</option>
+                  <option value="semi_monthly">Semi-monthly on two days</option>
+                  <option value="yearly">Yearly (month + day)</option>
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                Due day
+                <input
+                  name="dueDay"
+                  type="number"
+                  min={1}
+                  max={31}
+                  defaultValue={defaults.dueDay}
+                  className="font-data rounded border border-[color:var(--app-border)] px-3 py-2"
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                Second due day (semi-monthly)
+                <input
+                  name="secondDueDay"
+                  type="number"
+                  min={1}
+                  max={31}
+                  defaultValue={defaults.secondDueDay}
+                  className="font-data rounded border border-[color:var(--app-border)] px-3 py-2"
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                Due month (yearly)
+                <input
+                  name="dueMonth"
+                  type="number"
+                  min={1}
+                  max={12}
+                  defaultValue={defaults.dueMonth}
+                  className="font-data rounded border border-[color:var(--app-border)] px-3 py-2"
+                />
               </label>
             </div>
             <button

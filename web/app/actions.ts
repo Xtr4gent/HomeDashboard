@@ -16,15 +16,17 @@ import {
 } from "@/lib/planner-math";
 import { plannerInputSchema } from "@/lib/planner-schema";
 import { prisma } from "@/lib/prisma";
-import { buildMonthlyRecurrenceRule, monthKeyFromDate } from "@/lib/time";
+import { buildRecurrenceRule, monthKeyFromDate } from "@/lib/time";
 
 const addBillSchema = z.object({
   name: z.string().min(1),
   category: z.string().min(1),
   amount: z.string().min(1),
   recurrenceRule: z.string().optional(),
-  recurrenceMode: z.enum(["monthly_day", "monthly_last_day"]).optional(),
+  recurrenceMode: z.enum(["monthly_day", "monthly_last_day", "semi_monthly", "yearly"]).optional(),
   dueDay: z.coerce.number().int().min(1).max(31).optional(),
+  secondDueDay: z.coerce.number().int().min(1).max(31).optional(),
+  dueMonth: z.coerce.number().int().min(1).max(12).optional(),
 });
 
 const addUpgradeSchema = z.object({
@@ -78,6 +80,8 @@ export async function addBillAction(formData: FormData): Promise<void> {
     recurrenceRule: String(formData.get("recurrenceRule") ?? "").trim() || undefined,
     recurrenceMode: String(formData.get("recurrenceMode") ?? "").trim() || undefined,
     dueDay: String(formData.get("dueDay") ?? "").trim() || undefined,
+    secondDueDay: String(formData.get("secondDueDay") ?? "").trim() || undefined,
+    dueMonth: String(formData.get("dueMonth") ?? "").trim() || undefined,
   });
 
   if (!parsed.success) {
@@ -90,7 +94,11 @@ export async function addBillAction(formData: FormData): Promise<void> {
       redirect("/?error=invalid_bill_input");
     }
     try {
-      recurrenceRule = buildMonthlyRecurrenceRule(parsed.data.recurrenceMode, parsed.data.dueDay);
+      recurrenceRule = buildRecurrenceRule(parsed.data.recurrenceMode, {
+        dueDay: parsed.data.dueDay,
+        secondDueDay: parsed.data.secondDueDay,
+        dueMonth: parsed.data.dueMonth,
+      });
     } catch {
       redirect("/?error=invalid_bill_input");
     }
@@ -191,8 +199,6 @@ export async function addUpgradeAction(formData: FormData): Promise<void> {
 
 export async function saveScenarioAction(formData: FormData): Promise<void> {
   await requireSession();
-  const clock = getClock();
-  const now = clock.now();
   const parsed = plannerInputSchema.safeParse({
     scenarioId: String(formData.get("scenarioId") ?? "").trim() || undefined,
     expectedVersion: String(formData.get("expectedVersion") ?? "").trim() || undefined,
@@ -208,6 +214,10 @@ export async function saveScenarioAction(formData: FormData): Promise<void> {
     upgradeOneTimeCost: String(formData.get("upgradeOneTimeCost") ?? ""),
     upgradeSpreadMonths: String(formData.get("upgradeSpreadMonths") ?? ""),
     upgradeRateAnnualPct: String(formData.get("upgradeRateAnnualPct") ?? ""),
+    recurrenceMode: String(formData.get("recurrenceMode") ?? "").trim() || undefined,
+    dueDay: String(formData.get("dueDay") ?? "").trim() || undefined,
+    secondDueDay: String(formData.get("secondDueDay") ?? "").trim() || undefined,
+    dueMonth: String(formData.get("dueMonth") ?? "").trim() || undefined,
     compare: String(formData.get("compare") ?? ""),
   });
 
@@ -217,8 +227,6 @@ export async function saveScenarioAction(formData: FormData): Promise<void> {
 
   const projectionItems = buildScenarioProjectionItems(parsed.data);
   const totals = aggregateScenarioTotals(projectionItems);
-  const defaultRecurrenceRule = buildMonthlyRecurrenceRule("monthly_day", now.getDate());
-
   await prisma.$transaction(async (tx) => {
     let scenarioId = parsed.data.scenarioId;
 
@@ -274,7 +282,7 @@ export async function saveScenarioAction(formData: FormData): Promise<void> {
           category: item.category,
           itemType: "recurring" as const,
           amountCents: item.monthlyCents,
-          recurrenceRule: defaultRecurrenceRule,
+          recurrenceRule: item.recurrenceRule,
           termMonths: null,
           annualRateBps: null,
           sourceKind: null,
@@ -287,7 +295,7 @@ export async function saveScenarioAction(formData: FormData): Promise<void> {
           category: item.category,
           itemType: "financed" as const,
           amountCents: item.principalCents,
-          recurrenceRule: defaultRecurrenceRule,
+          recurrenceRule: item.recurrenceRule,
           termMonths: item.termMonths,
           annualRateBps: item.annualRateBps,
           sourceKind: item.category === "upgrade" ? "upgrade" : "housing",
@@ -364,7 +372,7 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
       throw new Error("Scenario not found.");
     }
 
-    const fallbackRecurrenceRule = buildMonthlyRecurrenceRule("monthly_day", now.getDate());
+    const fallbackRecurrenceRule = buildRecurrenceRule("monthly_day", { dueDay: now.getDate() });
 
     for (const item of scenario.items) {
       if (item.itemType === "recurring") {

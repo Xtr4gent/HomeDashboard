@@ -56,6 +56,10 @@ function buildPlannerFormData(extra: Record<string, string> = {}): FormData {
   formData.set("upgradeOneTimeCost", "12000");
   formData.set("upgradeSpreadMonths", "60");
   formData.set("upgradeRateAnnualPct", "6.5");
+  formData.set("recurrenceMode", "monthly_day");
+  formData.set("dueDay", "18");
+  formData.set("secondDueDay", "28");
+  formData.set("dueMonth", "4");
 
   for (const [key, value] of Object.entries(extra)) {
     formData.set(key, value);
@@ -75,7 +79,7 @@ describe("planner action hardening", () => {
     resetClockForTests();
   });
 
-  test("saveScenarioAction uses one request timestamp for recurrence defaults", async () => {
+  test("saveScenarioAction persists selected recurrence rules", async () => {
     const fixedNow = new Date("2026-04-18T14:00:00.000Z");
     setClockForTests({ now: () => fixedNow });
 

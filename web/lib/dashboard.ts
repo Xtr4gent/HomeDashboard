@@ -2,22 +2,30 @@ import { prisma } from "@/lib/prisma";
 import {
   dateDiffInDays,
   dateStringInTimezone,
-  dueDateForMonth,
+  dueDatesForMonth,
   monthKeyFromDate,
+  parseRecurrenceRule,
 } from "@/lib/time";
 
 const UTILITY_CATEGORIES = new Set(["utility", "water", "hydro", "gas", "internet"]);
 
-export type BillStatus = "paid_this_month" | "overdue" | "due_soon" | "unpaid_this_month";
+export type BillStatus =
+  | "paid_this_month"
+  | "overdue"
+  | "due_soon"
+  | "unpaid_this_month"
+  | "not_due_this_month";
 
 export type DashboardBill = {
   id: string;
   name: string;
   category: string;
   amountCents: number;
-  dueDate: string;
+  dueDate: string | null;
   status: BillStatus;
   isPaid: boolean;
+  monthlyEquivalentCents: number;
+  cashflowThisMonthCents: number;
 };
 
 export type DashboardData = {
@@ -27,6 +35,7 @@ export type DashboardData = {
   utilitiesTotalCents: number;
   upgradesTotalCents: number;
   totalMonthlyCostCents: number;
+  cashflowThisMonthCostCents: number;
   projectedYearlyCostCents: number;
   overdueCount: number;
   dueSoonCount: number;
@@ -63,6 +72,28 @@ function getStatus(args: { dueDate: string; todayDate: string; isPaid: boolean }
   return "unpaid_this_month";
 }
 
+function monthlyEquivalentForBill(amountCents: number, recurrenceRule: string): number {
+  const parsed = parseRecurrenceRule(recurrenceRule);
+  if (parsed.kind === "semi_monthly") {
+    return amountCents * 2;
+  }
+  if (parsed.kind === "yearly") {
+    return Math.round(amountCents / 12);
+  }
+  return amountCents;
+}
+
+function cashflowForMonth(amountCents: number, recurrenceRule: string, dueDatesThisMonth: string[]): number {
+  const parsed = parseRecurrenceRule(recurrenceRule);
+  if (parsed.kind === "semi_monthly") {
+    return dueDatesThisMonth.length * amountCents;
+  }
+  if (parsed.kind === "yearly") {
+    return dueDatesThisMonth.length > 0 ? amountCents : 0;
+  }
+  return amountCents;
+}
+
 export function projectedYearlyCost(totalMonthlyCostCents: number): number {
   return totalMonthlyCostCents * 12;
 }
@@ -96,36 +127,48 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
   });
 
   const mappedBills: DashboardBill[] = bills.map((bill: (typeof bills)[number]) => {
-    const dueDate = dueDateForMonth(bill.recurrenceRule, year, month);
+    const dueDatesThisMonth = dueDatesForMonth(bill.recurrenceRule, year, month);
+    const nextDueDate = dueDatesThisMonth.find((dueDate) => dueDate >= todayDate) ?? dueDatesThisMonth[0] ?? null;
     const isPaid = bill.payments.length > 0;
+    const monthlyEquivalentCents = monthlyEquivalentForBill(bill.amountCents, bill.recurrenceRule);
+    const cashflowThisMonthCents = cashflowForMonth(bill.amountCents, bill.recurrenceRule, dueDatesThisMonth);
+    const status = dueDatesThisMonth.length === 0
+      ? "not_due_this_month"
+      : getStatus({ dueDate: nextDueDate ?? todayDate, todayDate, isPaid });
+
     return {
       id: bill.id,
       name: bill.name,
       category: bill.category,
       amountCents: bill.amountCents,
-      dueDate,
+      dueDate: nextDueDate,
       isPaid,
-      status: getStatus({ dueDate, todayDate, isPaid }),
+      status,
+      monthlyEquivalentCents,
+      cashflowThisMonthCents,
     };
   });
 
   const utilitiesTotalCents = mappedBills
     .filter((bill) => UTILITY_CATEGORIES.has(bill.category.toLowerCase()))
-    .reduce((sum, bill) => sum + bill.amountCents, 0);
+    .reduce((sum, bill) => sum + bill.monthlyEquivalentCents, 0);
   const upgradesTotalCents = upgrades.reduce((sum, upgrade) => sum + upgrade.costCents, 0);
   const totalMonthlyCostCents =
-    mappedBills.reduce((sum, bill) => sum + bill.amountCents, 0) + upgradesTotalCents;
+    mappedBills.reduce((sum, bill) => sum + bill.monthlyEquivalentCents, 0) + upgradesTotalCents;
+  const cashflowThisMonthCostCents =
+    mappedBills.reduce((sum, bill) => sum + bill.cashflowThisMonthCents, 0) + upgradesTotalCents;
   const categoryMap = new Map<string, number>();
   for (const bill of mappedBills) {
     const key = bill.category.toLowerCase();
-    categoryMap.set(key, (categoryMap.get(key) ?? 0) + bill.amountCents);
+    categoryMap.set(key, (categoryMap.get(key) ?? 0) + bill.monthlyEquivalentCents);
   }
   const categoryTotals = [...categoryMap.entries()]
     .map(([category, totalCents]) => ({ category, totalCents }))
     .sort((a, b) => b.totalCents - a.totalCents)
     .slice(0, 5);
-  const paidCount = mappedBills.filter((bill) => bill.status === "paid_this_month").length;
-  const paidRatePct = mappedBills.length === 0 ? 0 : Math.round((paidCount / mappedBills.length) * 100);
+  const dueThisMonthBills = mappedBills.filter((bill) => bill.status !== "not_due_this_month");
+  const paidCount = dueThisMonthBills.filter((bill) => bill.status === "paid_this_month").length;
+  const paidRatePct = dueThisMonthBills.length === 0 ? 0 : Math.round((paidCount / dueThisMonthBills.length) * 100);
 
   return {
     monthKey,
@@ -134,6 +177,7 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     utilitiesTotalCents,
     upgradesTotalCents,
     totalMonthlyCostCents,
+    cashflowThisMonthCostCents,
     projectedYearlyCostCents: projectedYearlyCost(totalMonthlyCostCents),
     overdueCount: mappedBills.filter((bill) => bill.status === "overdue").length,
     dueSoonCount: mappedBills.filter((bill) => bill.status === "due_soon").length,

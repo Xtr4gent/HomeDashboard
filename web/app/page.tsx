@@ -26,6 +26,9 @@ function statusClasses(status: string): string {
   if (status === "paid_this_month") {
     return "border-[color:var(--app-success)]/20 bg-[color:var(--app-success)]/12 text-[color:var(--app-success)]";
   }
+  if (status === "not_due_this_month") {
+    return "border-[color:var(--app-border)] bg-[color:var(--app-bg)] text-[color:var(--app-muted)]";
+  }
   return "border-[color:var(--app-info)]/20 bg-[color:var(--app-info)]/12 text-[color:var(--app-info)]";
 }
 
@@ -85,8 +88,14 @@ export default async function Home({ searchParams }: Props) {
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
-            <p className="text-sm text-[color:var(--app-muted)]">Total monthly home cost</p>
+            <p className="text-sm text-[color:var(--app-muted)]">Prorated monthly home cost</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.totalMonthlyCostCents)}</p>
+          </article>
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Cashflow due this month</p>
+            <p className="font-data mt-1 text-2xl font-semibold">
+              {formatCurrency(dashboard.cashflowThisMonthCostCents)}
+            </p>
           </article>
           <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Projected yearly home cost</p>
@@ -174,7 +183,7 @@ export default async function Home({ searchParams }: Props) {
                       <div>
                         <p className="font-medium">{bill.name}</p>
                         <p className="font-data text-sm text-[color:var(--app-muted)]">
-                          Due {bill.dueDate} · {bill.category}
+                          {bill.dueDate ? `Due ${bill.dueDate}` : "Not due this month"} · {bill.category}
                         </p>
                       </div>
                       <p className="font-data font-semibold">{formatCurrency(bill.amountCents)}</p>
@@ -235,6 +244,8 @@ export default async function Home({ searchParams }: Props) {
               >
                 <option value="monthly_day">Monthly on a fixed day</option>
                 <option value="monthly_last_day">Monthly on the last day</option>
+                <option value="semi_monthly">Semi-monthly on two days</option>
+                <option value="yearly">Yearly (month + day)</option>
               </select>
               <input
                 type="number"
@@ -243,6 +254,24 @@ export default async function Home({ searchParams }: Props) {
                 min={1}
                 max={31}
                 className="font-data rounded border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
+              />
+              <input
+                type="number"
+                name="secondDueDay"
+                defaultValue="28"
+                min={1}
+                max={31}
+                className="font-data rounded border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
+                placeholder="Second day (semi-monthly only)"
+              />
+              <input
+                type="number"
+                name="dueMonth"
+                defaultValue="1"
+                min={1}
+                max={12}
+                className="font-data rounded border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
+                placeholder="Due month (yearly only)"
               />
               <button
                 type="submit"

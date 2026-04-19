@@ -13,6 +13,7 @@ export type ScenarioProjectionItem =
       kind: "recurring";
       label: string;
       category: string;
+      recurrenceRule: string;
       monthlyCents: number;
       yearlyCents: number;
     }
@@ -20,6 +21,7 @@ export type ScenarioProjectionItem =
       kind: "financed";
       label: string;
       category: string;
+      recurrenceRule: string;
       principalCents: number;
       annualRateBps: number;
       termMonths: number;
