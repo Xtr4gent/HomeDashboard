@@ -1,29 +1,29 @@
 {
-  "date": "2026-04-18",
-  "url": "http://localhost:3000",
-  "healthScore": 86,
+  "date": "2026-04-19",
+  "url": "http://localhost:3001",
+  "healthScore": 95,
   "issues": [
     {
       "id": "ISSUE-001",
-      "title": "Homepage 500 due to Prisma adapter misconfiguration",
-      "severity": "critical",
-      "category": "functional"
+      "title": "Dashboard shows low-severity hydration warning in dev",
+      "severity": "low",
+      "category": "console"
     },
     {
       "id": "ISSUE-002",
-      "title": "Login submit crashed with 500 when DB unavailable",
-      "severity": "high",
-      "category": "functional"
+      "title": "Budget tab switching has minor perceived delay",
+      "severity": "low",
+      "category": "ux"
     }
   ],
   "categoryScores": {
-    "console": 90,
+    "console": 95,
     "links": 100,
-    "visual": 85,
-    "functional": 78,
-    "ux": 84,
-    "performance": 80,
-    "content": 92,
-    "accessibility": 82
+    "visual": 97,
+    "functional": 98,
+    "ux": 90,
+    "performance": 90,
+    "content": 98,
+    "accessibility": 95
   }
 }

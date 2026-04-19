@@ -146,4 +146,28 @@
 **Priority:** P1
 **Depends on:** None
 
+### Budget Dashboard Hydration Warning Investigation
+
+**What:** Reproduce and resolve intermittent hydration warning shown on dashboard in local dev QA runs.
+
+**Why:** Hydration warnings can hide real SSR/client divergence and erode confidence while testing.
+
+**Context:** `/qa` run on 2026-04-19 found a low-severity hydration mismatch warning while validating budget feature routes on local dev server.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+### Budget Tab Loading Feedback Polish
+
+**What:** Add explicit loading feedback or optimize perceived response time when switching tabs on `/budget`.
+
+**Why:** Even short tab-switch delay feels broken without a loading cue and reduces UX clarity.
+
+**Context:** `/qa` run on 2026-04-19 observed low-severity delay when switching budget tabs despite successful render.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
 ## Completed
