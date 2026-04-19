@@ -196,6 +196,7 @@ export async function saveScenarioAction(formData: FormData): Promise<void> {
 
   const projectionItems = buildScenarioProjectionItems(parsed.data);
   const totals = aggregateScenarioTotals(projectionItems);
+  const defaultRecurrenceRule = buildMonthlyRecurrenceRule("monthly_day", new Date().getDate());
 
   await prisma.$transaction(async (tx) => {
     let scenarioId = parsed.data.scenarioId;
@@ -252,7 +253,7 @@ export async function saveScenarioAction(formData: FormData): Promise<void> {
           category: item.category,
           itemType: "recurring" as const,
           amountCents: item.monthlyCents,
-          recurrenceRule: "monthly_day_1",
+          recurrenceRule: defaultRecurrenceRule,
           termMonths: null,
           annualRateBps: null,
           sourceKind: null,
@@ -265,7 +266,7 @@ export async function saveScenarioAction(formData: FormData): Promise<void> {
           category: item.category,
           itemType: "financed" as const,
           amountCents: item.principalCents,
-          recurrenceRule: null,
+          recurrenceRule: defaultRecurrenceRule,
           termMonths: item.termMonths,
           annualRateBps: item.annualRateBps,
           sourceKind: item.category === "upgrade" ? "upgrade" : "housing",
@@ -319,6 +320,8 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
       throw new Error("Stale scenario version.");
     }
 
+    const fallbackRecurrenceRule = buildMonthlyRecurrenceRule("monthly_day", new Date().getDate());
+
     for (const item of scenario.items) {
       if (item.itemType === "recurring") {
         await tx.bill.create({
@@ -326,7 +329,7 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
             name: item.label,
             category: item.category,
             amountCents: item.amountCents,
-            recurrenceRule: item.recurrenceRule ?? "monthly_day_1",
+            recurrenceRule: item.recurrenceRule ?? fallbackRecurrenceRule,
           },
         });
         continue;
@@ -344,7 +347,7 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
             name: `${item.label} (financed)`,
             category: item.category,
             amountCents: financed.monthlyCents,
-            recurrenceRule: "monthly_day_1",
+            recurrenceRule: item.recurrenceRule ?? fallbackRecurrenceRule,
           },
         });
 
