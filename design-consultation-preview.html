@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HomeDashboard Design Preview</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;600&family=Instrument+Sans:wght@400;500;600;700&display=swap"
+    />
+    <style>
+      :root {
+        --bg: #f6f2e9;
+        --surface: #fffdf8;
+        --text: #1f2430;
+        --muted: #6b7280;
+        --accent: #c65d3a;
+        --success: #2f7d5a;
+        --warning: #b7791f;
+        --error: #b23a48;
+        --info: #2c6e9b;
+        --border: #e8e0d2;
+        --radius-sm: 6px;
+        --radius-md: 10px;
+        --radius-lg: 14px;
+        --shadow: 0 8px 24px rgba(31, 36, 48, 0.08);
+      }
+
+      [data-theme="dark"] {
+        --bg: #1f2026;
+        --surface: #2a2d35;
+        --text: #f5f1e9;
+        --muted: #b0b6c2;
+        --accent: #db7655;
+        --success: #65b58e;
+        --warning: #e0ac5c;
+        --error: #d8737f;
+        --info: #6fa9d5;
+        --border: #3a3d47;
+        --shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Instrument Sans", sans-serif;
+        color: var(--text);
+        background: radial-gradient(circle at top right, rgba(198, 93, 58, 0.08), transparent 40%), var(--bg);
+      }
+
+      .page {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow);
+      }
+
+      header {
+        padding: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-family: "Fraunces", serif;
+      }
+
+      h1 {
+        font-size: 2.1rem;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .btn {
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        padding: 10px 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .btn-secondary {
+        border-color: var(--border);
+        background: transparent;
+        color: var(--text);
+      }
+
+      .section {
+        margin-top: 18px;
+        padding: 20px;
+      }
+
+      .tokens,
+      .alerts,
+      .fonts {
+        display: grid;
+        gap: 12px;
+      }
+
+      .tokens {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      }
+
+      .swatch {
+        padding: 12px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border);
+      }
+
+      .dot {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+        margin-bottom: 8px;
+      }
+
+      .fonts {
+        grid-template-columns: 1fr;
+      }
+
+      .font-sample {
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+      }
+
+      .num {
+        font-family: "IBM Plex Mono", monospace;
+      }
+
+      .alerts {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+
+      .alert {
+        border-radius: var(--radius-md);
+        padding: 12px;
+        border: 1px solid currentColor;
+      }
+
+      .mockups {
+        display: grid;
+        grid-template-columns: 1.7fr 1fr;
+        gap: 14px;
+      }
+
+      .stat-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .mini {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 10px;
+      }
+
+      .bill-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border);
+        padding: 9px 0;
+      }
+
+      .status {
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 999px;
+      }
+
+      .ok {
+        background: rgba(47, 125, 90, 0.15);
+        color: var(--success);
+      }
+
+      .warn {
+        background: rgba(183, 121, 31, 0.15);
+        color: var(--warning);
+      }
+
+      .bad {
+        background: rgba(178, 58, 72, 0.15);
+        color: var(--error);
+      }
+
+      .panel {
+        padding: 14px;
+      }
+
+      @media (max-width: 980px) {
+        .mockups {
+          grid-template-columns: 1fr;
+        }
+
+        .stat-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body data-theme="light">
+    <div class="page">
+      <header class="card">
+        <div>
+          <p class="muted">HomeDashboard Design Consultation Preview</p>
+          <h1>Warm Editorial House Ops</h1>
+          <p class="muted">Command center for recurring bills and upgrade decisions.</p>
+        </div>
+        <button class="btn btn-secondary" id="theme-toggle">Toggle light/dark</button>
+      </header>
+
+      <section class="card section">
+        <h2>Color System</h2>
+        <div class="tokens">
+          <div class="swatch"><div class="dot" style="background:#f6f2e9"></div>Background<br /><span class="num">#F6F2E9</span></div>
+          <div class="swatch"><div class="dot" style="background:#fffdf8"></div>Surface<br /><span class="num">#FFFDF8</span></div>
+          <div class="swatch"><div class="dot" style="background:#1f2430"></div>Text<br /><span class="num">#1F2430</span></div>
+          <div class="swatch"><div class="dot" style="background:#6b7280"></div>Muted<br /><span class="num">#6B7280</span></div>
+          <div class="swatch"><div class="dot" style="background:#c65d3a"></div>Accent<br /><span class="num">#C65D3A</span></div>
+          <div class="swatch"><div class="dot" style="background:#2f7d5a"></div>Success<br /><span class="num">#2F7D5A</span></div>
+          <div class="swatch"><div class="dot" style="background:#b7791f"></div>Warning<br /><span class="num">#B7791F</span></div>
+          <div class="swatch"><div class="dot" style="background:#b23a48"></div>Error<br /><span class="num">#B23A48</span></div>
+        </div>
+      </section>
+
+      <section class="card section">
+        <h2>Typography</h2>
+        <div class="fonts">
+          <div class="font-sample" style="font-family:Fraunces,serif;font-size:1.35rem">Fraunces for dashboard section titles and hero statements.</div>
+          <div class="font-sample">Instrument Sans for body and controls. Clean, warm, readable at small sizes.</div>
+          <div class="font-sample num">IBM Plex Mono for bills, due dates, and tabular amounts: 2026-04 · $185.00 · paid</div>
+        </div>
+      </section>
+
+      <section class="card section">
+        <h2>Component States</h2>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px">
+          <button class="btn btn-primary">Save recurring bill</button>
+          <button class="btn btn-secondary">Cancel</button>
+        </div>
+        <div class="alerts">
+          <div class="alert" style="color:var(--success)">Success: Hydro payment marked as paid.</div>
+          <div class="alert" style="color:var(--warning)">Warning: Water bill due in 2 days.</div>
+          <div class="alert" style="color:var(--error)">Error: Could not save upgrade entry.</div>
+          <div class="alert" style="color:var(--info)">Info: Yearly projection updated.</div>
+        </div>
+      </section>
+
+      <section class="section card">
+        <h2>Realistic Product Mockups</h2>
+        <div class="mockups">
+          <div class="panel">
+            <h3>Dashboard Overview</h3>
+            <p class="muted">Monthly command center with urgent actions first.</p>
+            <div class="stat-grid">
+              <div class="mini"><p class="muted">Monthly total</p><strong class="num">$2,486.00</strong></div>
+              <div class="mini"><p class="muted">Projected yearly</p><strong class="num">$29,832.00</strong></div>
+              <div class="mini"><p class="muted">Utilities</p><strong class="num">$415.00</strong></div>
+              <div class="mini"><p class="muted">Upgrades</p><strong class="num">$640.00</strong></div>
+            </div>
+            <div style="margin-top:14px" class="mini">
+              <strong>Recurring Bills</strong>
+              <div class="bill-row"><span>Hydro · due 2026-04-24</span><span class="status warn">due soon</span></div>
+              <div class="bill-row"><span>Water · due 2026-04-29</span><span class="status ok">paid</span></div>
+              <div class="bill-row"><span>Internet · due 2026-04-20</span><span class="status bad">overdue</span></div>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>Add Bill Flow</h3>
+            <p class="muted">Friendly controls, no recurrence syntax required.</p>
+            <div class="mini" style="display:grid;gap:8px">
+              <label>Bill name<input style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px" value="Hydro" /></label>
+              <label>Category<input style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px" value="hydro" /></label>
+              <label>Amount<input style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px" value="185.00" /></label>
+              <label>Recurrence<select style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px"><option>Monthly fixed day</option></select></label>
+              <label>Due day<input style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px" value="24" /></label>
+              <button class="btn btn-primary">Save bill</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const toggle = document.getElementById("theme-toggle");
+      const body = document.body;
+      toggle.addEventListener("click", () => {
+        body.dataset.theme = body.dataset.theme === "light" ? "dark" : "light";
+      });
+    </script>
+  </body>
+</html>

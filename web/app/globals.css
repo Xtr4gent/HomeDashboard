@@ -1,24 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f9fc;
-  --surface: #ffffff;
-  --foreground: #1f2a37;
-  --accent-primary: #2d7ff9;
-  --accent-secondary: #16a34a;
-  --alert: #dc2626;
+  --app-bg: #f6f2e9;
+  --app-surface: #fffdf8;
+  --app-foreground: #1f2430;
+  --app-muted: #6b7280;
+  --app-accent: #c65d3a;
+  --app-border: #e8e0d2;
+  --app-success: #2f7d5a;
+  --app-warning: #b7791f;
+  --app-error: #b23a48;
+  --app-info: #2c6e9b;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-surface: var(--surface);
-  --color-foreground: var(--foreground);
+  --color-background: var(--app-bg);
+  --color-surface: var(--app-surface);
+  --color-foreground: var(--app-foreground);
   --font-sans: var(--font-body);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: radial-gradient(circle at top right, rgba(198, 93, 58, 0.08), transparent 40%), var(--app-bg);
+  color: var(--app-foreground);
   font-family: var(--font-body), sans-serif;
 }
 
@@ -28,5 +32,9 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-heading), sans-serif;
+  font-family: var(--font-display), serif;
+}
+
+.font-data {
+  font-family: var(--font-mono), monospace;
 }
