@@ -37,6 +37,25 @@ enum UpgradeProjectStatus {
   archived
 }
 
+enum MonthCloseStatus {
+  locked
+  reopened
+}
+
+enum ActivityAction {
+  bill_added
+  bill_paid
+  upgrade_added
+  projection_saved
+  projection_deleted
+  upgrade_project_saved
+  upgrade_project_deleted
+  scenario_saved
+  scenario_applied
+  month_closed
+  month_reopened
+}
+
 model User {
   id           String   @id @default(cuid())
   username     String   @unique
@@ -243,4 +262,39 @@ model UpgradeActualMonth {
 
   @@unique([projectId, monthKey])
   @@index([monthKey, loggedAt])
+}
+
+model MonthClose {
+  id                          String           @id @default(cuid())
+  monthKey                    String           @unique
+  status                      MonthCloseStatus @default(locked)
+  totalMonthlyCostCents       Int
+  cashflowThisMonthCostCents  Int
+  projectedYearlyCostCents    Int
+  utilitiesTotalCents         Int
+  upgradesTotalCents          Int
+  utilityProjectionVarianceCents Int          @default(0)
+  upgradeProjectionVarianceCents Int          @default(0)
+  closedByUsername            String
+  closedAt                    DateTime         @default(now())
+  reopenedAt                  DateTime?
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @updatedAt
+
+  @@index([closedAt])
+}
+
+model ActivityLog {
+  id             String         @id @default(cuid())
+  action         ActivityAction
+  actorUsername  String
+  monthKey       String?
+  entityType     String
+  entityId       String?
+  summary        String
+  metadata       Json?
+  createdAt      DateTime       @default(now())
+
+  @@index([createdAt])
+  @@index([monthKey, createdAt])
 }

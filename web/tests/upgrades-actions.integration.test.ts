@@ -14,6 +14,7 @@ const upgradePlanMonthUpsertMock = vi.fn();
 const upgradeActualMonthUpsertMock = vi.fn();
 const upgradePlanAggregateMock = vi.fn();
 const upgradeActualAggregateMock = vi.fn();
+const activityLogCreateMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
@@ -65,6 +66,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     upgradeActualMonth: {
       aggregate: upgradeActualAggregateMock,
+    },
+    activityLog: {
+      create: activityLogCreateMock,
     },
   },
 }));

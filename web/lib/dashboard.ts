@@ -66,6 +66,36 @@ export type DashboardData = {
     costCents: number;
     loggedAt: Date;
   }[];
+  monthClose: {
+    monthKey: string;
+    status: "locked" | "reopened";
+    closedByUsername: string;
+    closedAt: Date;
+    reopenedAt: Date | null;
+  } | null;
+  cashflowForecastWeeks: {
+    label: string;
+    startDate: string;
+    endDate: string;
+    totalCents: number;
+    dueCount: number;
+    isRisk: boolean;
+  }[];
+  anomalyAlerts: {
+    id: string;
+    title: string;
+    detail: string;
+    severity: "moderate" | "high";
+    monthKey: string;
+  }[];
+  recentActivity: {
+    id: string;
+    action: string;
+    actorUsername: string;
+    summary: string;
+    createdAt: Date;
+    monthKey: string | null;
+  }[];
 };
 
 function getStatus(args: { dueDate: string; todayDate: string; isPaid: boolean }): BillStatus {
@@ -111,6 +141,97 @@ export function projectedYearlyCost(totalMonthlyCostCents: number): number {
   return totalMonthlyCostCents * 12;
 }
 
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+function buildCashflowForecastWeeks(args: {
+  bills: { name: string; amountCents: number; recurrenceRule: string }[];
+  now: Date;
+  horizonDays?: number;
+}): DashboardData["cashflowForecastWeeks"] {
+  const horizonDays = args.horizonDays ?? 56;
+  const startDate = dateStringInTimezone(args.now);
+  const endDate = dateStringInTimezone(addDays(args.now, horizonDays));
+  const [startYear, startMonth] = startDate.split("-").map(Number);
+  const monthCandidates = [
+    [startYear, startMonth],
+    [startMonth === 12 ? startYear + 1 : startYear, startMonth === 12 ? 1 : startMonth + 1],
+    [startMonth >= 11 ? startYear + 1 : startYear, ((startMonth + 1) % 12) + 1],
+  ] as const;
+
+  const eventDates: { date: string; amountCents: number }[] = [];
+  for (const [year, month] of monthCandidates) {
+    for (const bill of args.bills) {
+      for (const dueDate of dueDatesForMonth(bill.recurrenceRule, year, month)) {
+        if (dueDate >= startDate && dueDate <= endDate) {
+          eventDates.push({ date: dueDate, amountCents: bill.amountCents });
+        }
+      }
+    }
+  }
+
+  const weeks: DashboardData["cashflowForecastWeeks"] = [];
+  for (let weekIndex = 0; weekIndex < Math.ceil(horizonDays / 7); weekIndex += 1) {
+    const start = dateStringInTimezone(addDays(args.now, weekIndex * 7));
+    const end = dateStringInTimezone(addDays(args.now, weekIndex * 7 + 6));
+    const inWeek = eventDates.filter((event) => event.date >= start && event.date <= end);
+    weeks.push({
+      label: `W${weekIndex + 1}`,
+      startDate: start,
+      endDate: end,
+      totalCents: inWeek.reduce((sum, event) => sum + event.amountCents, 0),
+      dueCount: inWeek.length,
+      isRisk: false,
+    });
+  }
+
+  const average = weeks.length === 0 ? 0 : weeks.reduce((sum, week) => sum + week.totalCents, 0) / weeks.length;
+  return weeks.map((week) => ({
+    ...week,
+    isRisk: week.totalCents > average * 1.35 && week.totalCents > 0,
+  }));
+}
+
+function buildAnomalyAlerts(args: {
+  monthKey: string;
+  utilityProjectionRows: { category: string; plannedCents: number; actualCents: number | null }[];
+  cashflowThisMonthCostCents: number;
+  totalMonthlyCostCents: number;
+}): DashboardData["anomalyAlerts"] {
+  const alerts: DashboardData["anomalyAlerts"] = [];
+  for (const row of args.utilityProjectionRows) {
+    if (row.actualCents === null || row.plannedCents <= 0) {
+      continue;
+    }
+    const varianceCents = row.actualCents - row.plannedCents;
+    const variancePct = Math.abs(varianceCents) / row.plannedCents;
+    if (Math.abs(varianceCents) >= 2_000 && variancePct >= 0.2) {
+      alerts.push({
+        id: `utility:${row.category}`,
+        monthKey: args.monthKey,
+        severity: variancePct >= 0.35 ? "high" : "moderate",
+        title: `${row.category} drifted from plan`,
+        detail: `Planned vs actual differs by ${Math.round(variancePct * 100)}%.`,
+      });
+    }
+  }
+
+  if (args.cashflowThisMonthCostCents > args.totalMonthlyCostCents * 1.2) {
+    alerts.push({
+      id: "cashflow-over-prorated",
+      monthKey: args.monthKey,
+      severity: "moderate",
+      title: "Cashflow concentration risk this month",
+      detail: "Due-this-month cashflow is materially above your prorated run-rate.",
+    });
+  }
+
+  return alerts.slice(0, 6);
+}
+
 export async function getDashboardData(now = new Date()): Promise<DashboardData> {
   const monthKey = monthKeyFromDate(now);
   const todayDate = dateStringInTimezone(now);
@@ -138,10 +259,10 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     },
     orderBy: { loggedAt: "desc" },
   });
-  const [utilityProjections, plannedUpgradeMonths, actualUpgradeMonths] = await Promise.all([
+  const [utilityProjections, plannedUpgradeMonths, actualUpgradeMonths, monthClose, recentActivity] = await Promise.all([
     prisma.utilityProjection.findMany({
       where: { monthKey },
-      select: { plannedCents: true, actualCents: true },
+      select: { category: true, plannedCents: true, actualCents: true },
     }),
     prisma.upgradePlanMonth.findMany({
       where: { monthKey },
@@ -150,6 +271,28 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     prisma.upgradeActualMonth.findMany({
       where: { monthKey },
       select: { projectId: true, actualCents: true },
+    }),
+    prisma.monthClose.findUnique({
+      where: { monthKey },
+      select: {
+        monthKey: true,
+        status: true,
+        closedByUsername: true,
+        closedAt: true,
+        reopenedAt: true,
+      },
+    }),
+    prisma.activityLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        action: true,
+        actorUsername: true,
+        summary: true,
+        createdAt: true,
+        monthKey: true,
+      },
     }),
   ]);
 
@@ -205,6 +348,17 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     })),
   );
 
+  const cashflowForecastWeeks = buildCashflowForecastWeeks({
+    bills,
+    now,
+  });
+  const anomalyAlerts = buildAnomalyAlerts({
+    monthKey,
+    utilityProjectionRows: utilityProjections,
+    cashflowThisMonthCostCents,
+    totalMonthlyCostCents,
+  });
+
   return {
     monthKey,
     todayDate,
@@ -233,5 +387,9 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
       coverageCount: upgradeProjectionSummary.actualCoverageCount,
     },
     upgrades,
+    monthClose,
+    cashflowForecastWeeks,
+    anomalyAlerts,
+    recentActivity,
   };
 }

@@ -3,9 +3,11 @@ import Link from "next/link";
 
 import {
   addBillAction,
+  closeMonthAction,
   addUpgradeAction,
   logoutAction,
   markPaidAction,
+  reopenMonthAction,
 } from "@/app/actions";
 import { getAnalyticsTrendData } from "@/lib/analytics";
 import { getSession } from "@/lib/auth/session";
@@ -98,6 +100,58 @@ export default async function Home({ searchParams }: Props) {
           </p>
         </section>
 
+        <section className="grid gap-4 lg:grid-cols-2">
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+            <h2 className="text-base font-semibold">Monthly Close</h2>
+            {dashboard.monthClose?.status === "locked" ? (
+              <div className="mt-2 space-y-2">
+                <p className="text-sm text-[color:var(--app-muted)]">
+                  {dashboard.monthClose.monthKey} is locked by {dashboard.monthClose.closedByUsername}.
+                </p>
+                <form action={reopenMonthAction}>
+                  <input type="hidden" name="monthKey" value={dashboard.monthKey} />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-[color:var(--app-border)] px-3 py-2 text-sm font-medium hover:bg-[color:var(--app-bg)]"
+                  >
+                    Reopen month
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div className="mt-2 space-y-2">
+                <p className="text-sm text-[color:var(--app-muted)]">
+                  Lock this month to finalize totals and keep a clean close history.
+                </p>
+                <form action={closeMonthAction}>
+                  <input type="hidden" name="monthKey" value={dashboard.monthKey} />
+                  <button
+                    type="submit"
+                    className="rounded-md bg-[color:var(--app-accent)] px-3 py-2 text-sm font-semibold text-white"
+                  >
+                    Close {dashboard.monthKey}
+                  </button>
+                </form>
+              </div>
+            )}
+          </article>
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+            <h2 className="text-base font-semibold">Anomaly + Drift Alerts</h2>
+            {dashboard.anomalyAlerts.length === 0 ? (
+              <p className="mt-2 text-sm text-[color:var(--app-muted)]">No significant anomalies detected.</p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {dashboard.anomalyAlerts.map((alert) => (
+                  <li key={alert.id} className="rounded-md border border-[color:var(--app-border)] px-3 py-2">
+                    <p className="text-sm font-medium">{alert.title}</p>
+                    <p className="text-xs text-[color:var(--app-muted)]">{alert.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+        </section>
+
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Prorated monthly home cost</p>
@@ -167,6 +221,23 @@ export default async function Home({ searchParams }: Props) {
               ))}
             </ul>
           )}
+        </section>
+
+        <section className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+          <h2 className="text-base font-semibold">Cashflow Calendar (8 weeks)</h2>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {dashboard.cashflowForecastWeeks.map((week) => (
+              <article key={week.label} className="rounded-md border border-[color:var(--app-border)] px-3 py-2">
+                <p className="text-xs text-[color:var(--app-muted)]">
+                  {week.label} · {week.startDate} to {week.endDate}
+                </p>
+                <p className="font-data text-sm font-semibold">{formatCurrency(week.totalCents)}</p>
+                <p className={`text-xs ${week.isRisk ? "text-[color:var(--app-error)]" : "text-[color:var(--app-muted)]"}`}>
+                  {week.dueCount} due events {week.isRisk ? "· risk week" : ""}
+                </p>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section className="grid gap-3 lg:grid-cols-3">
@@ -358,6 +429,30 @@ export default async function Home({ searchParams }: Props) {
               </button>
             </form>
           </div>
+        </section>
+
+        <section className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+          <h3 className="text-base font-semibold">Household Accountability Timeline</h3>
+          {dashboard.recentActivity.length === 0 ? (
+            <p className="mt-2 text-sm text-[color:var(--app-muted)]">No timeline events yet.</p>
+          ) : (
+            <ul className="mt-2 space-y-2">
+              {dashboard.recentActivity.map((entry) => (
+                <li key={entry.id} className="flex items-center justify-between rounded-md border border-[color:var(--app-border)] px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{entry.summary}</p>
+                    <p className="text-xs text-[color:var(--app-muted)]">
+                      {entry.actorUsername} · {entry.createdAt.toISOString().slice(0, 10)}
+                      {entry.monthKey ? ` · ${entry.monthKey}` : ""}
+                    </p>
+                  </div>
+                  <span className="rounded-md bg-[color:var(--app-bg)] px-2 py-1 text-xs text-[color:var(--app-muted)]">
+                    {entry.action.replaceAll("_", " ")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </main>
     </div>

@@ -11,6 +11,7 @@ const getSessionMock = vi.fn();
 
 let txMock: Record<string, unknown>;
 const transactionMock = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(txMock));
+const activityLogCreateMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
@@ -39,6 +40,9 @@ vi.mock("@/lib/analytics", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: transactionMock,
+    activityLog: {
+      create: activityLogCreateMock,
+    },
   },
 }));
 

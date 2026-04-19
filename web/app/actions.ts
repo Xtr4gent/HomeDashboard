@@ -9,6 +9,7 @@ import { enqueueAnalyticsRecompute, processQueuedAnalyticsJobs } from "@/lib/ana
 import { clearSession, createSession, getSession } from "@/lib/auth/session";
 import { getClock } from "@/lib/clock";
 import { buildScenarioProjectionItems } from "@/lib/planner-builder";
+import { getDashboardData } from "@/lib/dashboard";
 import { toCents } from "@/lib/money";
 import {
   aggregateScenarioTotals,
@@ -76,6 +77,10 @@ const deleteUpgradeProjectSchema = z.object({
   projectId: z.string().min(1),
 });
 
+const monthCloseSchema = z.object({
+  monthKey: z.string().min(1),
+});
+
 export async function loginAction(formData: FormData): Promise<void> {
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
@@ -108,8 +113,41 @@ async function requireSession() {
   return session;
 }
 
+async function logActivity(args: {
+  action:
+    | "bill_added"
+    | "bill_paid"
+    | "upgrade_added"
+    | "projection_saved"
+    | "projection_deleted"
+    | "upgrade_project_saved"
+    | "upgrade_project_deleted"
+    | "scenario_saved"
+    | "scenario_applied"
+    | "month_closed"
+    | "month_reopened";
+  actorUsername: string;
+  entityType: string;
+  entityId?: string;
+  monthKey?: string;
+  summary: string;
+  metadata?: Record<string, unknown>;
+}) {
+  await prisma.activityLog.create({
+    data: {
+      action: args.action,
+      actorUsername: args.actorUsername,
+      monthKey: args.monthKey,
+      entityType: args.entityType,
+      entityId: args.entityId ?? null,
+      summary: args.summary,
+      metadata: args.metadata,
+    },
+  });
+}
+
 export async function addBillAction(formData: FormData): Promise<void> {
-  await requireSession();
+  const session = await requireSession();
   const parsed = addBillSchema.safeParse({
     name: String(formData.get("name") ?? ""),
     category: String(formData.get("category") ?? ""),
@@ -149,6 +187,13 @@ export async function addBillAction(formData: FormData): Promise<void> {
       recurrenceRule,
     },
   });
+  await logActivity({
+    action: "bill_added",
+    actorUsername: session.username,
+    entityType: "bill",
+    entityId: createdBill.id,
+    summary: `Added bill ${createdBill.name}`,
+  });
   await enqueueAnalyticsRecompute({
     sourceEventKey: `bill_created:${createdBill.id}:${createdBill.updatedAt.toISOString()}`,
     triggerType: "bill_created",
@@ -159,7 +204,7 @@ export async function addBillAction(formData: FormData): Promise<void> {
 }
 
 export async function markPaidAction(formData: FormData): Promise<void> {
-  await requireSession();
+  const session = await requireSession();
 
   const parsed = paymentSchema.safeParse({
     billId: String(formData.get("billId") ?? ""),
@@ -191,6 +236,14 @@ export async function markPaidAction(formData: FormData): Promise<void> {
         paymentEventKey,
       },
     });
+    await logActivity({
+      action: "bill_paid",
+      actorUsername: session.username,
+      entityType: "payment",
+      entityId: payment.id,
+      monthKey,
+      summary: `Marked ${bill.id} paid for ${monthKey}`,
+    });
     await enqueueAnalyticsRecompute({
       sourceEventKey: `payment_marked:${payment.paymentEventKey}`,
       triggerType: "payment_marked",
@@ -205,7 +258,7 @@ export async function markPaidAction(formData: FormData): Promise<void> {
 }
 
 export async function addUpgradeAction(formData: FormData): Promise<void> {
-  await requireSession();
+  const session = await requireSession();
   const parsed = addUpgradeSchema.safeParse({
     title: String(formData.get("title") ?? ""),
     category: String(formData.get("category") ?? ""),
@@ -224,6 +277,14 @@ export async function addUpgradeAction(formData: FormData): Promise<void> {
       loggedAt: new Date(),
     },
   });
+  await logActivity({
+    action: "upgrade_added",
+    actorUsername: session.username,
+    entityType: "upgrade",
+    entityId: createdUpgrade.id,
+    monthKey: monthKeyFromDate(createdUpgrade.loggedAt),
+    summary: `Logged upgrade ${createdUpgrade.title}`,
+  });
   await enqueueAnalyticsRecompute({
     sourceEventKey: `upgrade_created:${createdUpgrade.id}:${createdUpgrade.updatedAt.toISOString()}`,
     triggerType: "upgrade_created",
@@ -235,7 +296,7 @@ export async function addUpgradeAction(formData: FormData): Promise<void> {
 }
 
 export async function saveUtilityProjectionAction(formData: FormData): Promise<void> {
-  await requireSession();
+  const session = await requireSession();
 
   const parsed = saveProjectionSchema.safeParse({
     monthKey: String(formData.get("monthKey") ?? ""),
@@ -263,7 +324,7 @@ export async function saveUtilityProjectionAction(formData: FormData): Promise<v
     redirect(`/projections?month=${encodeURIComponent(monthKey)}&error=invalid_projection_amount`);
   }
 
-  await prisma.utilityProjection.upsert({
+  const projection = await prisma.utilityProjection.upsert({
     where: {
       monthKey_category: {
         monthKey,
@@ -281,12 +342,20 @@ export async function saveUtilityProjectionAction(formData: FormData): Promise<v
       actualCents,
     },
   });
+  await logActivity({
+    action: "projection_saved",
+    actorUsername: session.username,
+    entityType: "utility_projection",
+    entityId: projection.id,
+    monthKey,
+    summary: `Saved projection for ${category} (${monthKey})`,
+  });
 
   revalidatePath("/projections");
 }
 
 export async function deleteUtilityProjectionAction(formData: FormData): Promise<void> {
-  await requireSession();
+  const session = await requireSession();
 
   const parsed = deleteProjectionSchema.safeParse({
     projectionId: String(formData.get("projectionId") ?? ""),
@@ -300,6 +369,13 @@ export async function deleteUtilityProjectionAction(formData: FormData): Promise
     where: { id: parsed.data.projectionId },
   }).catch(() => {
     // Projection may already be deleted in another tab.
+  });
+  await logActivity({
+    action: "projection_deleted",
+    actorUsername: session.username,
+    entityType: "utility_projection",
+    entityId: parsed.data.projectionId,
+    summary: "Deleted utility projection row",
   });
 
   revalidatePath("/projections");
@@ -339,7 +415,7 @@ export async function seedUtilityProjectionDefaultsAction(formData: FormData): P
 }
 
 export async function saveUpgradeProjectAction(formData: FormData): Promise<void> {
-  await requireSession();
+  const session = await requireSession();
   const parsed = saveUpgradeProjectSchema.safeParse({
     projectId: String(formData.get("projectId") ?? "").trim() || undefined,
     title: String(formData.get("title") ?? ""),
@@ -371,15 +447,31 @@ export async function saveUpgradeProjectAction(formData: FormData): Promise<void
   };
 
   if (parsed.data.projectId) {
-    await prisma.upgradeProject.update({
+    const updatedProject = await prisma.upgradeProject.update({
       where: { id: parsed.data.projectId },
       data: payload,
     }).catch(() => {
       redirect(`/upgrades?month=${encodeURIComponent(startMonthKey)}&error=invalid_upgrade_project`);
     });
+    await logActivity({
+      action: "upgrade_project_saved",
+      actorUsername: session.username,
+      entityType: "upgrade_project",
+      entityId: updatedProject.id,
+      monthKey: targetMonthKey,
+      summary: `Updated upgrade project ${updatedProject.title}`,
+    });
   } else {
-    await prisma.upgradeProject.create({
+    const createdProject = await prisma.upgradeProject.create({
       data: payload,
+    });
+    await logActivity({
+      action: "upgrade_project_saved",
+      actorUsername: session.username,
+      entityType: "upgrade_project",
+      entityId: createdProject.id,
+      monthKey: targetMonthKey,
+      summary: `Created upgrade project ${createdProject.title}`,
     });
   }
 
@@ -472,7 +564,7 @@ export async function saveUpgradeActualMonthAction(formData: FormData): Promise<
 }
 
 export async function deleteUpgradeProjectAction(formData: FormData): Promise<void> {
-  await requireSession();
+  const session = await requireSession();
   const parsed = deleteUpgradeProjectSchema.safeParse({
     projectId: String(formData.get("projectId") ?? ""),
   });
@@ -484,6 +576,13 @@ export async function deleteUpgradeProjectAction(formData: FormData): Promise<vo
     where: { id: parsed.data.projectId },
   }).catch(() => {
     // Project may already be deleted in another tab.
+  });
+  await logActivity({
+    action: "upgrade_project_deleted",
+    actorUsername: session.username,
+    entityType: "upgrade_project",
+    entityId: parsed.data.projectId,
+    summary: "Deleted upgrade project",
   });
 
   revalidatePath("/upgrades");
@@ -550,7 +649,7 @@ export async function cloneScenarioToDraftAction(formData: FormData): Promise<vo
 }
 
 export async function saveScenarioAction(formData: FormData): Promise<void> {
-  await requireSession();
+  const session = await requireSession();
   const parsed = plannerInputSchema.safeParse({
     scenarioId: String(formData.get("scenarioId") ?? "").trim() || undefined,
     expectedVersion: String(formData.get("expectedVersion") ?? "").trim() || undefined,
@@ -673,11 +772,18 @@ export async function saveScenarioAction(formData: FormData): Promise<void> {
 
   revalidatePath("/planner");
   revalidatePath("/");
+  await logActivity({
+    action: "scenario_saved",
+    actorUsername: session.username,
+    entityType: "scenario",
+    entityId: parsed.data.scenarioId,
+    summary: `Saved planner scenario ${parsed.data.name}`,
+  });
   redirect("/planner?success=scenario_saved");
 }
 
 export async function applyScenarioAction(formData: FormData): Promise<void> {
-  await requireSession();
+  const session = await requireSession();
   const clock = getClock();
   const now = clock.now();
   const scenarioId = String(formData.get("scenarioId") ?? "").trim();
@@ -801,9 +907,99 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
     triggerType: "scenario_applied",
     at: now,
   });
+  await logActivity({
+    action: "scenario_applied",
+    actorUsername: session.username,
+    entityType: "scenario",
+    entityId: scenarioId,
+    monthKey: monthKeyFromDate(now),
+    summary: "Applied scenario to live dashboard",
+  });
   void processQueuedAnalyticsJobs({ limit: 2 });
 
   revalidatePath("/planner");
   revalidatePath("/");
   redirect("/planner?success=scenario_applied");
+}
+
+export async function closeMonthAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const parsed = monthCloseSchema.safeParse({
+    monthKey: String(formData.get("monthKey") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/?error=invalid_month_close");
+  }
+
+  const dashboard = await getDashboardData(new Date(`${parsed.data.monthKey}-15T12:00:00.000Z`));
+  const monthKey = dashboard.monthKey;
+  const closeRecord = await prisma.monthClose.upsert({
+    where: { monthKey },
+    create: {
+      monthKey,
+      status: "locked",
+      totalMonthlyCostCents: dashboard.totalMonthlyCostCents,
+      cashflowThisMonthCostCents: dashboard.cashflowThisMonthCostCents,
+      projectedYearlyCostCents: dashboard.projectedYearlyCostCents,
+      utilitiesTotalCents: dashboard.utilitiesTotalCents,
+      upgradesTotalCents: dashboard.upgradesTotalCents,
+      utilityProjectionVarianceCents: dashboard.utilityProjection.varianceCents,
+      upgradeProjectionVarianceCents: dashboard.upgradeProjection.varianceCents,
+      closedByUsername: session.username,
+      closedAt: new Date(),
+    },
+    update: {
+      status: "locked",
+      totalMonthlyCostCents: dashboard.totalMonthlyCostCents,
+      cashflowThisMonthCostCents: dashboard.cashflowThisMonthCostCents,
+      projectedYearlyCostCents: dashboard.projectedYearlyCostCents,
+      utilitiesTotalCents: dashboard.utilitiesTotalCents,
+      upgradesTotalCents: dashboard.upgradesTotalCents,
+      utilityProjectionVarianceCents: dashboard.utilityProjection.varianceCents,
+      upgradeProjectionVarianceCents: dashboard.upgradeProjection.varianceCents,
+      closedByUsername: session.username,
+      closedAt: new Date(),
+      reopenedAt: null,
+    },
+  });
+
+  await logActivity({
+    action: "month_closed",
+    actorUsername: session.username,
+    entityType: "month_close",
+    entityId: closeRecord.id,
+    monthKey,
+    summary: `Closed month ${monthKey}`,
+  });
+  revalidatePath("/");
+}
+
+export async function reopenMonthAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const parsed = monthCloseSchema.safeParse({
+    monthKey: String(formData.get("monthKey") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/?error=invalid_month_close");
+  }
+
+  const reopened = await prisma.monthClose.update({
+    where: { monthKey: parsed.data.monthKey },
+    data: {
+      status: "reopened",
+      reopenedAt: new Date(),
+    },
+  }).catch(() => null);
+
+  if (reopened) {
+    await logActivity({
+      action: "month_reopened",
+      actorUsername: session.username,
+      entityType: "month_close",
+      entityId: reopened.id,
+      monthKey: reopened.monthKey,
+      summary: `Reopened month ${reopened.monthKey}`,
+    });
+  }
+  revalidatePath("/");
 }

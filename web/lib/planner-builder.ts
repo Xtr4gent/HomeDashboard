@@ -12,6 +12,42 @@ function toBps(annualRatePct: number): number {
   return Math.round(annualRatePct * 100);
 }
 
+export type ScenarioCompareInput = {
+  monthlyTotalCents: number;
+  yearlyTotalCents: number;
+  oneTimeCents: number;
+};
+
+export type ScenarioCompareDelta = {
+  monthlyDeltaCents: number;
+  yearlyDeltaCents: number;
+  threeYearDeltaCents: number;
+  breakEvenMonths: number | null;
+};
+
+export function buildScenarioCompareDelta(
+  baseline: ScenarioCompareInput,
+  candidate: ScenarioCompareInput,
+): ScenarioCompareDelta {
+  const monthlyDeltaCents = candidate.monthlyTotalCents - baseline.monthlyTotalCents;
+  const yearlyDeltaCents = candidate.yearlyTotalCents - baseline.yearlyTotalCents;
+  const threeYearDeltaCents = yearlyDeltaCents * 3;
+
+  const additionalUpfrontCents = candidate.oneTimeCents - baseline.oneTimeCents;
+  const monthlySavingsCents = baseline.monthlyTotalCents - candidate.monthlyTotalCents;
+  const breakEvenMonths =
+    additionalUpfrontCents > 0 && monthlySavingsCents > 0
+      ? Math.ceil(additionalUpfrontCents / monthlySavingsCents)
+      : null;
+
+  return {
+    monthlyDeltaCents,
+    yearlyDeltaCents,
+    threeYearDeltaCents,
+    breakEvenMonths,
+  };
+}
+
 export function buildScenarioProjectionItems(input: PlannerInput): ScenarioProjectionItem[] {
   const recurrenceRule = buildRecurrenceRule(input.recurrenceMode, {
     dueDay: input.dueDay,

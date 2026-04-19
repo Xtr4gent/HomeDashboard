@@ -8,6 +8,7 @@ const revalidatePathMock = vi.fn();
 const getSessionMock = vi.fn();
 const utilityProjectionUpsertMock = vi.fn();
 const utilityProjectionDeleteMock = vi.fn();
+const activityLogCreateMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
@@ -38,6 +39,9 @@ vi.mock("@/lib/prisma", () => ({
     utilityProjection: {
       upsert: utilityProjectionUpsertMock,
       delete: utilityProjectionDeleteMock,
+    },
+    activityLog: {
+      create: activityLogCreateMock,
     },
   },
 }));

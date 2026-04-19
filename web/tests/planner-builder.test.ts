@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { buildScenarioProjectionItems } from "@/lib/planner-builder";
+import { buildScenarioCompareDelta, buildScenarioProjectionItems } from "@/lib/planner-builder";
 import type { PlannerInput } from "@/lib/planner-schema";
 
 function baseInput(): PlannerInput {
@@ -61,5 +61,27 @@ describe("planner builder recurrence", () => {
 
     expect(upgradeItems.length).toBeGreaterThan(0);
     expect(housingItems.length).toBeGreaterThan(0);
+  });
+});
+
+describe("planner compare deltas", () => {
+  test("computes monthly/yearly/3-year deltas and break-even", () => {
+    const delta = buildScenarioCompareDelta(
+      {
+        monthlyTotalCents: 400000,
+        yearlyTotalCents: 4800000,
+        oneTimeCents: 0,
+      },
+      {
+        monthlyTotalCents: 350000,
+        yearlyTotalCents: 4200000,
+        oneTimeCents: 1200000,
+      },
+    );
+
+    expect(delta.monthlyDeltaCents).toBe(-50000);
+    expect(delta.yearlyDeltaCents).toBe(-600000);
+    expect(delta.threeYearDeltaCents).toBe(-1800000);
+    expect(delta.breakEvenMonths).toBe(24);
   });
 });

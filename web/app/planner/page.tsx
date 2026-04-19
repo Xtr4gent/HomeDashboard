@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { applyScenarioAction, cloneScenarioToDraftAction, logoutAction, saveScenarioAction } from "@/app/actions";
 import { getSession } from "@/lib/auth/session";
 import { formatCurrency } from "@/lib/money";
+import { buildScenarioCompareDelta } from "@/lib/planner-builder";
 import { prisma } from "@/lib/prisma";
 import { type RecurrenceMode, parseRecurrenceRule } from "@/lib/time";
 
@@ -42,6 +43,7 @@ type ScenarioDraft = {
   yearlyTotalCents: number;
   recurringMonthlyCents: number;
   financedMonthlyCents: number;
+  oneTimeCents: number;
   items: {
     label: string;
     category: string;
@@ -434,6 +436,19 @@ export default async function PlannerPage({ searchParams }: Props) {
                 <article key={scenario.id} className="rounded-md border border-[color:var(--app-border)] p-3">
                   {(() => {
                     const split = splitScenarioTotals(scenario);
+                    const baseline = compareScenarios[0];
+                    const deltas = buildScenarioCompareDelta(
+                      {
+                        monthlyTotalCents: baseline.monthlyTotalCents,
+                        yearlyTotalCents: baseline.yearlyTotalCents,
+                        oneTimeCents: baseline.oneTimeCents,
+                      },
+                      {
+                        monthlyTotalCents: scenario.monthlyTotalCents,
+                        yearlyTotalCents: scenario.yearlyTotalCents,
+                        oneTimeCents: scenario.oneTimeCents,
+                      },
+                    );
                     return (
                       <>
                   <p className="font-medium">{scenario.name}</p>
@@ -448,6 +463,15 @@ export default async function PlannerPage({ searchParams }: Props) {
                   <p className="font-data text-xs text-[color:var(--app-muted)]">
                     Housing {formatCurrency(split.housingCents)} · Upgrades {formatCurrency(split.upgradesCents)}
                   </p>
+                  <div className="mt-2 rounded-md bg-[color:var(--app-bg)] px-2 py-2">
+                    <p className="text-xs font-semibold text-[color:var(--app-muted)]">Compare 2.0 vs baseline</p>
+                    <p className="font-data text-xs">Monthly delta {formatCurrency(deltas.monthlyDeltaCents)}</p>
+                    <p className="font-data text-xs">Yearly delta {formatCurrency(deltas.yearlyDeltaCents)}</p>
+                    <p className="font-data text-xs">3-year delta {formatCurrency(deltas.threeYearDeltaCents)}</p>
+                    <p className="text-xs text-[color:var(--app-muted)]">
+                      Break-even: {deltas.breakEvenMonths ? `${deltas.breakEvenMonths} months` : "N/A"}
+                    </p>
+                  </div>
                       </>
                     );
                   })()}
