@@ -2,10 +2,12 @@ import "dotenv/config";
 
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { z } from "zod";
 
 const seedEnv = z
   .object({
+    DATABASE_URL: z.string().min(1),
     HOUSEHOLD_ACCOUNT_1_USERNAME: z.string().min(1),
     HOUSEHOLD_ACCOUNT_1_PASSWORD: z.string().min(1),
     HOUSEHOLD_ACCOUNT_2_USERNAME: z.string().min(1),
@@ -13,7 +15,8 @@ const seedEnv = z
   })
   .parse(process.env);
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg({ connectionString: seedEnv.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 async function upsertUser(username: string, password: string): Promise<void> {
   const passwordHash = await bcrypt.hash(password, 12);
