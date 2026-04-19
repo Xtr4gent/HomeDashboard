@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "prisma:generate": "prisma generate",
-    "db:push": "prisma db push",
+    "db:prepare-source-ids": "tsx prisma/prepare-source-ids.ts",
+    "db:push": "prisma db push --accept-data-loss",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
