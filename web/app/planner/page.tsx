@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { applyScenarioAction, logoutAction, saveScenarioAction } from "@/app/actions";
+import { applyScenarioAction, cloneScenarioToDraftAction, logoutAction, saveScenarioAction } from "@/app/actions";
 import { getSession } from "@/lib/auth/session";
 import { formatCurrency } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
@@ -37,6 +37,7 @@ type ScenarioDraft = {
   version: number;
   name: string;
   notes: string | null;
+  status: "draft" | "applied";
   monthlyTotalCents: number;
   yearlyTotalCents: number;
   recurringMonthlyCents: number;
@@ -50,6 +51,22 @@ type ScenarioDraft = {
     recurrenceRule: string | null;
   }[];
 };
+
+function splitScenarioTotals(scenario: ScenarioDraft): { housingCents: number; upgradesCents: number } {
+  let housingCents = 0;
+  let upgradesCents = 0;
+
+  for (const item of scenario.items) {
+    const category = item.category.toLowerCase();
+    if (category === "upgrade" || category === "financed-upgrade") {
+      upgradesCents += item.amountCents;
+      continue;
+    }
+    housingCents += item.amountCents;
+  }
+
+  return { housingCents, upgradesCents };
+}
 
 function asAmount(cents: number): string {
   return (cents / 100).toFixed(2);
@@ -153,17 +170,18 @@ export default async function PlannerPage({ searchParams }: Props) {
       : [];
 
   const scenarios: ScenarioDraft[] = await prisma.scenario.findMany({
-    where: { status: "draft" },
+    where: { status: { in: ["draft", "applied"] } },
     include: { items: true },
     orderBy: { updatedAt: "desc" },
-    take: 5,
+    take: 10,
   });
 
+  const draftScenarios = scenarios.filter((scenario) => scenario.status === "draft");
   const selectedScenario = selectedScenarioId
-    ? scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? null
-    : scenarios[0] ?? null;
+    ? draftScenarios.find((scenario) => scenario.id === selectedScenarioId) ?? null
+    : draftScenarios[0] ?? null;
 
-  const compareScenarios = scenarios.filter((scenario) => compareIds.includes(scenario.id));
+  const compareScenarios = draftScenarios.filter((scenario) => compareIds.includes(scenario.id));
   const defaults = defaultsFromScenario(selectedScenario);
 
   return (
@@ -228,7 +246,9 @@ export default async function PlannerPage({ searchParams }: Props) {
             <h2 className="text-lg font-semibold">Scenario Builder</h2>
             <input type="hidden" name="scenarioId" value={defaults.scenarioId ?? ""} />
             <input type="hidden" name="expectedVersion" value={defaults.expectedVersion ?? ""} />
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-4">
+              <section className="grid gap-3 sm:grid-cols-2">
+                <p className="sm:col-span-2 text-sm font-semibold text-[color:var(--app-muted)]">Housing costs and financing</p>
               <label className="grid gap-1 text-sm">
                 Scenario name
                 <input
@@ -272,18 +292,6 @@ export default async function PlannerPage({ searchParams }: Props) {
               <label className="grid gap-1 text-sm">
                 Other monthly
                 <input name="otherMonthly" defaultValue={defaults.otherMonthly} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
-              </label>
-              <label className="grid gap-1 text-sm">
-                Upgrade one-time cost
-                <input name="upgradeOneTimeCost" defaultValue={defaults.upgradeOneTimeCost} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
-              </label>
-              <label className="grid gap-1 text-sm">
-                Upgrade spread months
-                <input name="upgradeSpreadMonths" defaultValue={defaults.upgradeSpreadMonths} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
-              </label>
-              <label className="grid gap-1 text-sm">
-                Upgrade annual rate %
-                <input name="upgradeRateAnnualPct" defaultValue={defaults.upgradeRateAnnualPct} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
               </label>
               <label className="grid gap-1 text-sm">
                 Recurrence mode
@@ -331,6 +339,23 @@ export default async function PlannerPage({ searchParams }: Props) {
                   className="font-data rounded border border-[color:var(--app-border)] px-3 py-2"
                 />
               </label>
+              </section>
+
+              <section className="grid gap-3 sm:grid-cols-2">
+                <p className="sm:col-span-2 text-sm font-semibold text-[color:var(--app-muted)]">Upgrades planning</p>
+              <label className="grid gap-1 text-sm">
+                Upgrade one-time cost
+                <input name="upgradeOneTimeCost" defaultValue={defaults.upgradeOneTimeCost} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                Upgrade spread months
+                <input name="upgradeSpreadMonths" defaultValue={defaults.upgradeSpreadMonths} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                Upgrade annual rate %
+                <input name="upgradeRateAnnualPct" defaultValue={defaults.upgradeRateAnnualPct} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
+              </label>
+              </section>
             </div>
             <button
               type="submit"
@@ -353,28 +378,42 @@ export default async function PlannerPage({ searchParams }: Props) {
                       Monthly {formatCurrency(scenario.monthlyTotalCents)} · Yearly {formatCurrency(scenario.yearlyTotalCents)}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <Link
-                        href={`/planner?scenarioId=${scenario.id}`}
-                        className="rounded border border-[color:var(--app-border)] px-2 py-1 text-xs font-semibold text-[color:var(--app-muted)]"
-                      >
-                        Edit
-                      </Link>
+                      {scenario.status === "draft" ? (
+                        <Link
+                          href={`/planner?scenarioId=${scenario.id}`}
+                          className="rounded border border-[color:var(--app-border)] px-2 py-1 text-xs font-semibold text-[color:var(--app-muted)]"
+                        >
+                          Edit
+                        </Link>
+                      ) : (
+                        <form action={cloneScenarioToDraftAction}>
+                          <input type="hidden" name="scenarioId" value={scenario.id} />
+                          <button
+                            type="submit"
+                            className="rounded border border-[color:var(--app-border)] px-2 py-1 text-xs font-semibold text-[color:var(--app-muted)]"
+                          >
+                            Edit as new draft
+                          </button>
+                        </form>
+                      )}
                       <Link
                         href={`/planner?compare=${encodeURIComponent([scenario.id, ...compareIds].slice(0, 5).join(","))}`}
                         className="rounded border border-[color:var(--app-border)] px-2 py-1 text-xs font-semibold text-[color:var(--app-muted)]"
                       >
                         Compare
                       </Link>
-                      <form action={applyScenarioAction}>
-                        <input type="hidden" name="scenarioId" value={scenario.id} />
-                        <input type="hidden" name="expectedVersion" value={scenario.version} />
-                        <button
-                          type="submit"
-                          className="rounded bg-[color:var(--app-success)] px-2 py-1 text-xs font-semibold text-white"
-                        >
-                          Apply to dashboard
-                        </button>
-                      </form>
+                      {scenario.status === "draft" ? (
+                        <form action={applyScenarioAction}>
+                          <input type="hidden" name="scenarioId" value={scenario.id} />
+                          <input type="hidden" name="expectedVersion" value={scenario.version} />
+                          <button
+                            type="submit"
+                            className="rounded bg-[color:var(--app-success)] px-2 py-1 text-xs font-semibold text-white"
+                          >
+                            Apply to dashboard
+                          </button>
+                        </form>
+                      ) : null}
                     </div>
                   </li>
                 ))}
@@ -393,6 +432,10 @@ export default async function PlannerPage({ searchParams }: Props) {
             <div className="mt-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {compareScenarios.map((scenario) => (
                 <article key={scenario.id} className="rounded-md border border-[color:var(--app-border)] p-3">
+                  {(() => {
+                    const split = splitScenarioTotals(scenario);
+                    return (
+                      <>
                   <p className="font-medium">{scenario.name}</p>
                   <p className="font-data mt-1 text-sm">
                     Monthly {formatCurrency(scenario.monthlyTotalCents)}
@@ -402,6 +445,12 @@ export default async function PlannerPage({ searchParams }: Props) {
                     Recurring {formatCurrency(scenario.recurringMonthlyCents)} · Financed{" "}
                     {formatCurrency(scenario.financedMonthlyCents)}
                   </p>
+                  <p className="font-data text-xs text-[color:var(--app-muted)]">
+                    Housing {formatCurrency(split.housingCents)} · Upgrades {formatCurrency(split.upgradesCents)}
+                  </p>
+                      </>
+                    );
+                  })()}
                 </article>
               ))}
             </div>

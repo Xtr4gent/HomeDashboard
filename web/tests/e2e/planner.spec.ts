@@ -61,6 +61,15 @@ test.describe("planner lab", () => {
     await scenarioCard.getByRole("button", { name: "Apply to dashboard" }).click();
     await expect(page.getByText("Planner action completed successfully.")).toBeVisible();
 
+    const appliedCard = page.locator("li").filter({ hasText: uniqueName }).first();
+    await expect(appliedCard.getByRole("button", { name: "Edit as new draft" })).toBeVisible();
+    await appliedCard.getByRole("button", { name: "Edit as new draft" }).click();
+    await expect(page.getByText("Planner action completed successfully.")).toBeVisible();
+    await expect(page.getByLabel("Scenario name")).toHaveValue(`${uniqueName} (copy)`);
+
+    const compareSection = page.getByRole("heading", { name: "Scenario comparison" });
+    await expect(compareSection).toBeVisible();
+
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "House Ops Command Center" })).toBeVisible();
     const afterCount = await recurringCard.getByRole("button", { name: /Mark paid|Paid/ }).count();

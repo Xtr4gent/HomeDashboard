@@ -489,6 +489,66 @@ export async function deleteUpgradeProjectAction(formData: FormData): Promise<vo
   revalidatePath("/upgrades");
 }
 
+export async function cloneScenarioToDraftAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const scenarioId = String(formData.get("scenarioId") ?? "").trim();
+  if (!scenarioId) {
+    redirect("/planner?error=scenario_not_found");
+  }
+
+  const cloned = await prisma.$transaction(async (tx) => {
+    const sourceScenario = await tx.scenario.findUnique({
+      where: { id: scenarioId },
+      include: { items: true },
+    });
+
+    if (!sourceScenario) {
+      return null;
+    }
+
+    const createdScenario = await tx.scenario.create({
+      data: {
+        name: `${sourceScenario.name} (copy)`,
+        notes: sourceScenario.notes,
+        status: "draft",
+        version: 1,
+        monthlyTotalCents: sourceScenario.monthlyTotalCents,
+        yearlyTotalCents: sourceScenario.yearlyTotalCents,
+        financedMonthlyCents: sourceScenario.financedMonthlyCents,
+        recurringMonthlyCents: sourceScenario.recurringMonthlyCents,
+        oneTimeCents: sourceScenario.oneTimeCents,
+        appliedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (sourceScenario.items.length > 0) {
+      await tx.scenarioItem.createMany({
+        data: sourceScenario.items.map((item) => ({
+          scenarioId: createdScenario.id,
+          label: item.label,
+          category: item.category,
+          itemType: item.itemType,
+          amountCents: item.amountCents,
+          recurrenceRule: item.recurrenceRule,
+          termMonths: item.termMonths,
+          annualRateBps: item.annualRateBps,
+          sourceKind: item.sourceKind,
+        })),
+      });
+    }
+
+    return createdScenario;
+  });
+
+  if (!cloned) {
+    redirect("/planner?error=scenario_not_found");
+  }
+
+  revalidatePath("/planner");
+  redirect(`/planner?scenarioId=${encodeURIComponent(cloned.id)}&success=scenario_cloned`);
+}
+
 export async function saveScenarioAction(formData: FormData): Promise<void> {
   await requireSession();
   const parsed = plannerInputSchema.safeParse({

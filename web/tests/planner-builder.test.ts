@@ -49,4 +49,17 @@ describe("planner builder recurrence", () => {
       true,
     );
   });
+
+  test("keeps upgrade categories distinct from housing categories for split summaries", () => {
+    const items = buildScenarioProjectionItems({
+      ...baseInput(),
+      upgradeOneTimeCost: 12000,
+    });
+
+    const upgradeItems = items.filter((item) => item.category === "upgrade");
+    const housingItems = items.filter((item) => item.category !== "upgrade");
+
+    expect(upgradeItems.length).toBeGreaterThan(0);
+    expect(housingItems.length).toBeGreaterThan(0);
+  });
 });

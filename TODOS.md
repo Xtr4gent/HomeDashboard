@@ -110,4 +110,40 @@
 **Priority:** P1
 **Depends on:** None
 
+### Atomic Scenario Apply Idempotency Guard
+
+**What:** Make planner scenario apply atomic and idempotent with a claim-once transition and DB-level uniqueness for apply output records.
+
+**Why:** Prevent duplicate bills/upgrades from race conditions caused by retries, double-clicks, or parallel tab submits.
+
+**Context:** Current apply flow validates scenario state and version in app logic, then writes multiple records before final status update. In concurrent submits, both requests can pass preconditions and create duplicate outputs before one marks scenario as applied.
+
+**Effort:** M
+**Priority:** P1
+**Depends on:** None
+
+### Injectable Clock for Planner Actions
+
+**What:** Introduce a shared injectable clock abstraction for planner server actions and use one request-scoped timestamp per mutation transaction.
+
+**Why:** Eliminates timestamp drift inside single apply/save operations and enables deterministic boundary testing.
+
+**Context:** Planner action code currently reads `new Date()` in multiple locations. We decided to prefer a full clock abstraction so retries, test fixtures, and month-boundary logic all share explicit time semantics.
+
+**Effort:** S
+**Priority:** P1
+**Depends on:** None
+
+### Unified Money Conversion API
+
+**What:** Consolidate planner numeric-to-cents and form string-to-cents conversion into one shared money conversion API and remove duplicate helper paths.
+
+**Why:** Reduces drift risk in validation and rounding behavior across planner and dashboard write paths.
+
+**Context:** Planner and form flows currently rely on separate conversion semantics. We agreed to converge on a single source of truth to keep edge-case handling explicit and consistent.
+
+**Effort:** S
+**Priority:** P1
+**Depends on:** None
+
 ## Completed

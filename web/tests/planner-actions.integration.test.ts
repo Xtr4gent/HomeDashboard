@@ -206,4 +206,66 @@ describe("planner action hardening", () => {
       }),
     );
   });
+
+  test("cloneScenarioToDraftAction copies an applied scenario into a new draft", async () => {
+    const scenarioFindUnique = vi.fn().mockResolvedValue({
+      id: "scenario-applied-1",
+      name: "Applied Scenario",
+      notes: "already pushed",
+      monthlyTotalCents: 100000,
+      yearlyTotalCents: 1200000,
+      financedMonthlyCents: 45000,
+      recurringMonthlyCents: 55000,
+      oneTimeCents: 120000,
+      items: [
+        {
+          id: "item-a",
+          label: "Mortgage",
+          category: "mortgage",
+          itemType: "financed",
+          amountCents: 800000,
+          recurrenceRule: "monthly_day_15",
+          termMonths: 300,
+          annualRateBps: 520,
+          sourceKind: "housing",
+        },
+      ],
+    });
+    const scenarioCreate = vi.fn().mockResolvedValue({ id: "scenario-draft-2" });
+    const scenarioItemCreateMany = vi.fn().mockResolvedValue({ count: 1 });
+
+    txMock = {
+      scenario: { findUnique: scenarioFindUnique, create: scenarioCreate },
+      scenarioItem: { createMany: scenarioItemCreateMany },
+    };
+
+    const { cloneScenarioToDraftAction } = await import("@/app/actions");
+    const formData = new FormData();
+    formData.set("scenarioId", "scenario-applied-1");
+
+    await expect(cloneScenarioToDraftAction(formData)).rejects.toThrow(
+      "REDIRECT:/planner?scenarioId=scenario-draft-2&success=scenario_cloned",
+    );
+
+    expect(scenarioCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "draft",
+          version: 1,
+          appliedAt: null,
+          name: "Applied Scenario (copy)",
+        }),
+      }),
+    );
+    expect(scenarioItemCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            scenarioId: "scenario-draft-2",
+            label: "Mortgage",
+          }),
+        ],
+      }),
+    );
+  });
 });
