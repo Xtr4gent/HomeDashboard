@@ -10,11 +10,31 @@ const bootstrapHouseholdSchema = z.object({
   HOUSEHOLD_ACCOUNT_2_PASSWORD: z.string().min(1),
 });
 
+function readEnvLoosely(expectedKey: string): string | undefined {
+  const direct = process.env[expectedKey];
+  if (typeof direct === "string") {
+    return direct.trim();
+  }
+
+  for (const [rawKey, rawValue] of Object.entries(process.env)) {
+    if (rawKey.trim() === expectedKey && typeof rawValue === "string") {
+      return rawValue.trim();
+    }
+  }
+
+  return undefined;
+}
+
 async function tryBootstrapUser(
   username: string,
   password: string,
 ): Promise<{ id: string; username: string } | null> {
-  const parsed = bootstrapHouseholdSchema.safeParse(process.env);
+  const parsed = bootstrapHouseholdSchema.safeParse({
+    HOUSEHOLD_ACCOUNT_1_USERNAME: readEnvLoosely("HOUSEHOLD_ACCOUNT_1_USERNAME"),
+    HOUSEHOLD_ACCOUNT_1_PASSWORD: readEnvLoosely("HOUSEHOLD_ACCOUNT_1_PASSWORD"),
+    HOUSEHOLD_ACCOUNT_2_USERNAME: readEnvLoosely("HOUSEHOLD_ACCOUNT_2_USERNAME"),
+    HOUSEHOLD_ACCOUNT_2_PASSWORD: readEnvLoosely("HOUSEHOLD_ACCOUNT_2_PASSWORD"),
+  });
   if (!parsed.success) {
     return null;
   }
