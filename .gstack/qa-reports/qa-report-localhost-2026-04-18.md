@@ -81,3 +81,43 @@
 
 ## PR Summary
 QA found **2** issues, fixed **2**, health score **42 -> 86**.
+
+---
+
+## QA Run Addendum (Planner Analytics)
+- Date: `2026-04-18`
+- Scope: `/login`, `/planner`, `/` apply-to-dashboard flow
+- Result: **DONE_WITH_CONCERNS**
+
+### ISSUE-003 - Planner-applied bills defaulted to day-1 recurrence
+- Severity: **High**
+- Category: Functional
+- Repro:
+  1. Save a draft in `/planner`.
+  2. Click `Apply to dashboard`.
+  3. Open `/` and review newly created bills.
+  4. Observe due date defaults to day 1 and appears immediately overdue mid-month.
+- Evidence:
+  - Before: dashboard screenshot showing `Due 2026-04-01` with `overdue` badges
+  - After: dashboard screenshot showing new entries due on current day and marked `due soon`
+- Fix status: **verified**
+- Commit: `fb83f08`
+- Files changed:
+  - `web/app/actions.ts`
+
+### ISSUE-004 - Seed script failed with Prisma client initialization error
+- Severity: **Medium**
+- Category: Functional / Dev Workflow
+- Repro:
+  1. Run `npm run db:seed` in `web/`.
+  2. Observe `PrismaClientInitializationError` complaining about invalid client options.
+- Evidence:
+  - Before: failing terminal output from `npm run db:seed`
+  - After: successful `Household accounts have been upserted.`
+- Fix status: **verified**
+- Commit: `92cbaa3`
+- Files changed:
+  - `web/prisma/seed.ts`
+
+### Concerns
+- This QA pass used seeded local credentials from `.env`. If production credentials diverge, auth behavior should be re-checked against deployed env vars.
