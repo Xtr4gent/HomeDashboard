@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { deleteUtilityProjectionAction, logoutAction, saveUtilityProjectionAction } from "@/app/actions";
+import {
+  deleteUtilityProjectionAction,
+  logoutAction,
+  saveUtilityProjectionAction,
+  seedUtilityProjectionDefaultsAction,
+} from "@/app/actions";
 import { getSession } from "@/lib/auth/session";
 import { formatCurrency } from "@/lib/money";
 import { getUtilityProjectionData, resolveProjectionMonthKey } from "@/lib/projections";
@@ -24,6 +29,16 @@ function toAmount(cents: number | null): string {
   return (cents / 100).toFixed(2);
 }
 
+function previousMonthKey(monthKey: string): string {
+  const [yearText, monthText] = monthKey.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  if (month === 1) {
+    return `${year - 1}-12`;
+  }
+  return `${year}-${String(month - 1).padStart(2, "0")}`;
+}
+
 export default async function ProjectionsPage({ searchParams }: Props) {
   const session = await getSession();
   if (!session) {
@@ -33,6 +48,7 @@ export default async function ProjectionsPage({ searchParams }: Props) {
   const params = await searchParams;
   const monthKey = resolveProjectionMonthKey(parseMonthParam(params.month));
   const projectionData = await getUtilityProjectionData(monthKey);
+  const previousMonthData = await getUtilityProjectionData(previousMonthKey(monthKey));
   const hasError = typeof params.error === "string";
 
   return (
@@ -58,6 +74,12 @@ export default async function ProjectionsPage({ searchParams }: Props) {
               <span className="rounded-md bg-[color:var(--app-accent)] px-3 py-1 text-xs font-semibold text-white">
                 Projections
               </span>
+              <Link
+                href="/upgrades"
+                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
+              >
+                Upgrades
+              </Link>
             </div>
           </div>
           <form action={logoutAction}>
@@ -79,6 +101,9 @@ export default async function ProjectionsPage({ searchParams }: Props) {
         ) : null}
 
         <section className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+          <p className="text-sm text-[color:var(--app-muted)]">
+            Monthly projections are driven by the selected month. Save planned values first, then enter actuals when bills land to track variance.
+          </p>
           <form method="get" className="flex flex-wrap items-end gap-3">
             <label className="grid gap-1 text-sm">
               Month
@@ -94,6 +119,15 @@ export default async function ProjectionsPage({ searchParams }: Props) {
               className="rounded bg-[color:var(--app-accent)] px-3 py-2 text-sm font-medium text-white"
             >
               Load month
+            </button>
+          </form>
+          <form action={seedUtilityProjectionDefaultsAction} className="mt-3">
+            <input type="hidden" name="monthKey" value={projectionData.monthKey} />
+            <button
+              type="submit"
+              className="rounded border border-[color:var(--app-border)] px-3 py-2 text-sm font-medium text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
+            >
+              Create monthly projection defaults
             </button>
           </form>
         </section>
@@ -113,6 +147,21 @@ export default async function ProjectionsPage({ searchParams }: Props) {
           <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Variance</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(projectionData.summary.varianceTotalCents)}</p>
+          </article>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-3">
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Previous month planned</p>
+            <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(previousMonthData.summary.plannedTotalCents)}</p>
+          </article>
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Previous month actual</p>
+            <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(previousMonthData.summary.actualTotalCents)}</p>
+          </article>
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Previous month variance</p>
+            <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(previousMonthData.summary.varianceTotalCents)}</p>
           </article>
         </section>
 

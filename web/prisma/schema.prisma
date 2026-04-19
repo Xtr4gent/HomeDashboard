@@ -30,6 +30,13 @@ enum AnalyticsJobStatus {
   failed
 }
 
+enum UpgradeProjectStatus {
+  planned
+  in_progress
+  completed
+  archived
+}
+
 model User {
   id           String   @id @default(cuid())
   username     String   @unique
@@ -121,6 +128,14 @@ model AnalyticsSnapshotDaily {
   projectedYearlyCostCents  Int
   utilitiesTotalCents       Int
   upgradesTotalCents        Int
+  utilityProjectionPlannedCents Int   @default(0)
+  utilityProjectionActualCents Int    @default(0)
+  utilityProjectionVarianceCents Int  @default(0)
+  utilityProjectionCoverageCount Int  @default(0)
+  upgradeProjectionPlannedCents Int   @default(0)
+  upgradeProjectionActualCents Int    @default(0)
+  upgradeProjectionVarianceCents Int  @default(0)
+  upgradeProjectionCoverageCount Int  @default(0)
   paidRatePct               Int
   topCategory               String?
   topCategoryTotalCents     Int?
@@ -138,6 +153,14 @@ model AnalyticsSnapshotMonthly {
   projectedYearlyCostCents  Int
   utilitiesTotalCents       Int
   upgradesTotalCents        Int
+  utilityProjectionPlannedCents Int   @default(0)
+  utilityProjectionActualCents Int    @default(0)
+  utilityProjectionVarianceCents Int  @default(0)
+  utilityProjectionCoverageCount Int  @default(0)
+  upgradeProjectionPlannedCents Int   @default(0)
+  upgradeProjectionActualCents Int    @default(0)
+  upgradeProjectionVarianceCents Int  @default(0)
+  upgradeProjectionCoverageCount Int  @default(0)
   paidRatePct               Int
   topCategory               String?
   topCategoryTotalCents     Int?
@@ -175,4 +198,49 @@ model UtilityProjection {
 
   @@unique([monthKey, category])
   @@index([monthKey, updatedAt])
+}
+
+model UpgradeProject {
+  id               String             @id @default(cuid())
+  title            String
+  category         String
+  notes            String?
+  status           UpgradeProjectStatus @default(planned)
+  startMonthKey    String
+  targetMonthKey   String
+  plannedTotalCents Int               @default(0)
+  actualTotalCents Int                @default(0)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  planMonths       UpgradePlanMonth[]
+  actualMonths     UpgradeActualMonth[]
+
+  @@index([status, targetMonthKey])
+}
+
+model UpgradePlanMonth {
+  id          String        @id @default(cuid())
+  projectId   String
+  monthKey    String
+  plannedCents Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  project     UpgradeProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, monthKey])
+  @@index([monthKey, updatedAt])
+}
+
+model UpgradeActualMonth {
+  id          String        @id @default(cuid())
+  projectId   String
+  monthKey    String
+  actualCents Int
+  loggedAt    DateTime      @default(now())
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  project     UpgradeProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, monthKey])
+  @@index([monthKey, loggedAt])
 }

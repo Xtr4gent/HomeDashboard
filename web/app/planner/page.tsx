@@ -189,6 +189,12 @@ export default async function PlannerPage({ searchParams }: Props) {
               >
                 Projections
               </Link>
+              <Link
+                href="/upgrades"
+                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
+              >
+                Upgrades
+              </Link>
             </div>
           </div>
           <form action={logoutAction}>

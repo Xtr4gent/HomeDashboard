@@ -15,9 +15,10 @@ import {
   projectFinancedItem,
 } from "@/lib/planner-math";
 import { plannerInputSchema } from "@/lib/planner-schema";
-import { normalizeProjectionCategory, resolveProjectionMonthKey } from "@/lib/projections";
+import { normalizeProjectionCategory, resolveProjectionMonthKey, DEFAULT_UTILITY_PROJECTION_CATEGORIES } from "@/lib/projections";
 import { prisma } from "@/lib/prisma";
 import { buildRecurrenceRule, monthKeyFromDate } from "@/lib/time";
+import { normalizeUpgradeCategory, normalizeUpgradeTitle, recalculateUpgradeProjectTotals } from "@/lib/upgrades";
 
 const addBillSchema = z.object({
   name: z.string().min(1),
@@ -49,6 +50,30 @@ const saveProjectionSchema = z.object({
 
 const deleteProjectionSchema = z.object({
   projectionId: z.string().min(1),
+});
+
+const seedProjectionDefaultsSchema = z.object({
+  monthKey: z.string().min(1),
+});
+
+const saveUpgradeProjectSchema = z.object({
+  projectId: z.string().optional(),
+  title: z.string().min(1),
+  category: z.string().min(1),
+  notes: z.string().optional(),
+  status: z.enum(["planned", "in_progress", "completed", "archived"]),
+  startMonthKey: z.string().min(1),
+  targetMonthKey: z.string().min(1),
+});
+
+const saveUpgradeMonthValueSchema = z.object({
+  projectId: z.string().min(1),
+  monthKey: z.string().min(1),
+  amount: z.string().min(1),
+});
+
+const deleteUpgradeProjectSchema = z.object({
+  projectId: z.string().min(1),
 });
 
 export async function loginAction(formData: FormData): Promise<void> {
@@ -278,6 +303,190 @@ export async function deleteUtilityProjectionAction(formData: FormData): Promise
   });
 
   revalidatePath("/projections");
+}
+
+export async function seedUtilityProjectionDefaultsAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const parsed = seedProjectionDefaultsSchema.safeParse({
+    monthKey: String(formData.get("monthKey") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/projections?error=invalid_projection_seed");
+  }
+
+  const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
+  await prisma.$transaction(async (tx) => {
+    for (const category of DEFAULT_UTILITY_PROJECTION_CATEGORIES) {
+      await tx.utilityProjection.upsert({
+        where: {
+          monthKey_category: {
+            monthKey,
+            category,
+          },
+        },
+        update: {},
+        create: {
+          monthKey,
+          category,
+          plannedCents: 0,
+          actualCents: null,
+        },
+      });
+    }
+  });
+
+  revalidatePath("/projections");
+}
+
+export async function saveUpgradeProjectAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const parsed = saveUpgradeProjectSchema.safeParse({
+    projectId: String(formData.get("projectId") ?? "").trim() || undefined,
+    title: String(formData.get("title") ?? ""),
+    category: String(formData.get("category") ?? ""),
+    notes: String(formData.get("notes") ?? "").trim() || undefined,
+    status: String(formData.get("status") ?? "planned"),
+    startMonthKey: String(formData.get("startMonthKey") ?? ""),
+    targetMonthKey: String(formData.get("targetMonthKey") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/upgrades?error=invalid_upgrade_project");
+  }
+
+  const startMonthKey = resolveProjectionMonthKey(parsed.data.startMonthKey);
+  const targetMonthKey = resolveProjectionMonthKey(parsed.data.targetMonthKey);
+  const category = normalizeUpgradeCategory(parsed.data.category);
+  const title = normalizeUpgradeTitle(parsed.data.title);
+  if (!title || !category) {
+    redirect(`/upgrades?month=${encodeURIComponent(startMonthKey)}&error=invalid_upgrade_project`);
+  }
+
+  const payload = {
+    title,
+    category,
+    notes: parsed.data.notes ?? null,
+    status: parsed.data.status,
+    startMonthKey,
+    targetMonthKey,
+  };
+
+  if (parsed.data.projectId) {
+    await prisma.upgradeProject.update({
+      where: { id: parsed.data.projectId },
+      data: payload,
+    }).catch(() => {
+      redirect(`/upgrades?month=${encodeURIComponent(startMonthKey)}&error=invalid_upgrade_project`);
+    });
+  } else {
+    await prisma.upgradeProject.create({
+      data: payload,
+    });
+  }
+
+  revalidatePath("/upgrades");
+}
+
+export async function saveUpgradePlannedMonthAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const parsed = saveUpgradeMonthValueSchema.safeParse({
+    projectId: String(formData.get("projectId") ?? ""),
+    monthKey: String(formData.get("monthKey") ?? ""),
+    amount: String(formData.get("planned") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/upgrades?error=invalid_upgrade_plan_month");
+  }
+  const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
+
+  let plannedCents = 0;
+  try {
+    plannedCents = toCents(parsed.data.amount, { allowZero: true });
+  } catch {
+    redirect(`/upgrades?month=${encodeURIComponent(monthKey)}&error=invalid_upgrade_plan_month`);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.upgradePlanMonth.upsert({
+      where: {
+        projectId_monthKey: {
+          projectId: parsed.data.projectId,
+          monthKey,
+        },
+      },
+      create: {
+        projectId: parsed.data.projectId,
+        monthKey,
+        plannedCents,
+      },
+      update: {
+        plannedCents,
+      },
+    });
+  });
+
+  await recalculateUpgradeProjectTotals(parsed.data.projectId);
+  revalidatePath("/upgrades");
+}
+
+export async function saveUpgradeActualMonthAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const parsed = saveUpgradeMonthValueSchema.safeParse({
+    projectId: String(formData.get("projectId") ?? ""),
+    monthKey: String(formData.get("monthKey") ?? ""),
+    amount: String(formData.get("actual") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/upgrades?error=invalid_upgrade_actual_month");
+  }
+
+  const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
+  let actualCents = 0;
+  try {
+    actualCents = toCents(parsed.data.amount, { allowZero: true });
+  } catch {
+    redirect(`/upgrades?month=${encodeURIComponent(monthKey)}&error=invalid_upgrade_actual_month`);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.upgradeActualMonth.upsert({
+      where: {
+        projectId_monthKey: {
+          projectId: parsed.data.projectId,
+          monthKey,
+        },
+      },
+      create: {
+        projectId: parsed.data.projectId,
+        monthKey,
+        actualCents,
+      },
+      update: {
+        actualCents,
+        loggedAt: new Date(),
+      },
+    });
+  });
+
+  await recalculateUpgradeProjectTotals(parsed.data.projectId);
+  revalidatePath("/upgrades");
+}
+
+export async function deleteUpgradeProjectAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const parsed = deleteUpgradeProjectSchema.safeParse({
+    projectId: String(formData.get("projectId") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/upgrades?error=invalid_upgrade_project_delete");
+  }
+
+  await prisma.upgradeProject.delete({
+    where: { id: parsed.data.projectId },
+  }).catch(() => {
+    // Project may already be deleted in another tab.
+  });
+
+  revalidatePath("/upgrades");
 }
 
 export async function saveScenarioAction(formData: FormData): Promise<void> {

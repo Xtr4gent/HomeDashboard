@@ -64,6 +64,12 @@ export default async function Home({ searchParams }: Props) {
               >
                 Projections
               </Link>
+              <Link
+                href="/upgrades"
+                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
+              >
+                Upgrades
+              </Link>
             </div>
           </div>
           <form action={logoutAction}>
@@ -114,6 +120,20 @@ export default async function Home({ searchParams }: Props) {
           <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Upgrade spend</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.upgradesTotalCents)}</p>
+          </article>
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Utility projection variance</p>
+            <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.utilityProjection.varianceCents)}</p>
+            <p className="mt-1 text-xs text-[color:var(--app-muted)]">
+              {dashboard.utilityProjection.coverageCount} categories with actual values.
+            </p>
+          </article>
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Upgrade plan variance</p>
+            <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.upgradeProjection.varianceCents)}</p>
+            <p className="mt-1 text-xs text-[color:var(--app-muted)]">
+              {dashboard.upgradeProjection.coverageCount} projects with actual values.
+            </p>
           </article>
         </section>
 

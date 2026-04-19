@@ -6,6 +6,7 @@ import {
   monthKeyFromDate,
   parseRecurrenceRule,
 } from "@/lib/time";
+import { buildVarianceSummary } from "@/lib/variance";
 
 const UTILITY_CATEGORIES = new Set(["utility", "water", "hydro", "gas", "internet"]);
 
@@ -46,6 +47,18 @@ export type DashboardData = {
     category: string;
     totalCents: number;
   }[];
+  utilityProjection: {
+    plannedCents: number;
+    actualCents: number;
+    varianceCents: number;
+    coverageCount: number;
+  };
+  upgradeProjection: {
+    plannedCents: number;
+    actualCents: number;
+    varianceCents: number;
+    coverageCount: number;
+  };
   upgrades: {
     id: string;
     title: string;
@@ -125,6 +138,20 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     },
     orderBy: { loggedAt: "desc" },
   });
+  const [utilityProjections, plannedUpgradeMonths, actualUpgradeMonths] = await Promise.all([
+    prisma.utilityProjection.findMany({
+      where: { monthKey },
+      select: { plannedCents: true, actualCents: true },
+    }),
+    prisma.upgradePlanMonth.findMany({
+      where: { monthKey },
+      select: { projectId: true, plannedCents: true },
+    }),
+    prisma.upgradeActualMonth.findMany({
+      where: { monthKey },
+      select: { projectId: true, actualCents: true },
+    }),
+  ]);
 
   const mappedBills: DashboardBill[] = bills.map((bill: (typeof bills)[number]) => {
     const dueDatesThisMonth = dueDatesForMonth(bill.recurrenceRule, year, month);
@@ -169,6 +196,14 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
   const dueThisMonthBills = mappedBills.filter((bill) => bill.status !== "not_due_this_month");
   const paidCount = dueThisMonthBills.filter((bill) => bill.status === "paid_this_month").length;
   const paidRatePct = dueThisMonthBills.length === 0 ? 0 : Math.round((paidCount / dueThisMonthBills.length) * 100);
+  const utilityProjectionSummary = buildVarianceSummary(utilityProjections);
+  const actualByProject = new Map(actualUpgradeMonths.map((row) => [row.projectId, row.actualCents]));
+  const upgradeProjectionSummary = buildVarianceSummary(
+    plannedUpgradeMonths.map((row) => ({
+      plannedCents: row.plannedCents,
+      actualCents: actualByProject.get(row.projectId) ?? null,
+    })),
+  );
 
   return {
     monthKey,
@@ -185,6 +220,18 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     paidCount,
     paidRatePct,
     categoryTotals,
+    utilityProjection: {
+      plannedCents: utilityProjectionSummary.plannedTotalCents,
+      actualCents: utilityProjectionSummary.actualTotalCents,
+      varianceCents: utilityProjectionSummary.varianceTotalCents,
+      coverageCount: utilityProjectionSummary.actualCoverageCount,
+    },
+    upgradeProjection: {
+      plannedCents: upgradeProjectionSummary.plannedTotalCents,
+      actualCents: upgradeProjectionSummary.actualTotalCents,
+      varianceCents: upgradeProjectionSummary.varianceTotalCents,
+      coverageCount: upgradeProjectionSummary.actualCoverageCount,
+    },
     upgrades,
   };
 }

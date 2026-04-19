@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { monthKeyFromDate } from "@/lib/time";
+import { buildVarianceSummary } from "@/lib/variance";
 
 export type UtilityProjectionRow = {
   id: string;
@@ -40,17 +41,16 @@ export function normalizeProjectionCategory(rawCategory: string): string {
 }
 
 export function buildProjectionSummary(rows: Array<{ plannedCents: number; actualCents: number | null }>): UtilityProjectionSummary {
-  const plannedTotalCents = rows.reduce((sum, row) => sum + row.plannedCents, 0);
-  const actualRows = rows.filter((row) => row.actualCents !== null);
-  const actualTotalCents = actualRows.reduce((sum, row) => sum + (row.actualCents ?? 0), 0);
-
+  const summary = buildVarianceSummary(rows);
   return {
-    plannedTotalCents,
-    actualTotalCents,
-    varianceTotalCents: actualTotalCents - plannedTotalCents,
-    actualCoverageCount: actualRows.length,
+    plannedTotalCents: summary.plannedTotalCents,
+    actualTotalCents: summary.actualTotalCents,
+    varianceTotalCents: summary.varianceTotalCents,
+    actualCoverageCount: summary.actualCoverageCount,
   };
 }
+
+export const DEFAULT_UTILITY_PROJECTION_CATEGORIES = ["hydro", "gas", "water", "internet"];
 
 export async function getUtilityProjectionData(monthKey: string): Promise<UtilityProjectionData> {
   const projections = await prisma.utilityProjection.findMany({
