@@ -14,11 +14,15 @@ export type UpgradeProjectRow = {
   monthVarianceCents: number | null;
   plannedTotalCents: number;
   actualTotalCents: number;
+  isOverdueTarget: boolean;
 };
 
 export type UpgradePlannerData = {
   monthKey: string;
   projects: UpgradeProjectRow[];
+  activeCount: number;
+  overdueCount: number;
+  completedCount: number;
   monthSummary: VarianceSummary;
   totalSummary: VarianceSummary;
 };
@@ -29,6 +33,22 @@ export function normalizeUpgradeCategory(rawCategory: string): string {
 
 export function normalizeUpgradeTitle(rawTitle: string): string {
   return rawTitle.trim();
+}
+
+export function filterUpgradeProjects(
+  projects: UpgradeProjectRow[],
+  view: "all" | "active" | "overdue" | "completed",
+): UpgradeProjectRow[] {
+  if (view === "active") {
+    return projects.filter((project) => project.status === "planned" || project.status === "in_progress");
+  }
+  if (view === "overdue") {
+    return projects.filter((project) => project.isOverdueTarget);
+  }
+  if (view === "completed") {
+    return projects.filter((project) => project.status === "completed");
+  }
+  return projects;
 }
 
 export async function recalculateUpgradeProjectTotals(projectId: string): Promise<void> {
@@ -77,6 +97,8 @@ export async function getUpgradePlannerData(monthKey: string): Promise<UpgradePl
       monthVarianceCents: monthActual === null ? null : monthActual - monthPlanned,
       plannedTotalCents: project.plannedTotalCents,
       actualTotalCents: project.actualTotalCents,
+      isOverdueTarget:
+        project.targetMonthKey < monthKey && project.status !== "completed" && project.status !== "archived",
     };
   });
 
@@ -97,6 +119,9 @@ export async function getUpgradePlannerData(monthKey: string): Promise<UpgradePl
   return {
     monthKey,
     projects: rows,
+    activeCount: rows.filter((row) => row.status === "planned" || row.status === "in_progress").length,
+    overdueCount: rows.filter((row) => row.isOverdueTarget).length,
+    completedCount: rows.filter((row) => row.status === "completed").length,
     monthSummary,
     totalSummary,
   };

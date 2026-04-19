@@ -21,6 +21,10 @@ export type UtilityProjectionData = {
   monthKey: string;
   rows: UtilityProjectionRow[];
   summary: UtilityProjectionSummary;
+  outliers: {
+    largestOverrun: UtilityProjectionRow | null;
+    largestUnderrun: UtilityProjectionRow | null;
+  };
 };
 
 export function resolveProjectionMonthKey(rawMonthKey: string | undefined, now = new Date()): string {
@@ -52,6 +56,28 @@ export function buildProjectionSummary(rows: Array<{ plannedCents: number; actua
 
 export const DEFAULT_UTILITY_PROJECTION_CATEGORIES = ["hydro", "gas", "water", "internet"];
 
+export function buildProjectionOutliers(rows: UtilityProjectionRow[]): UtilityProjectionData["outliers"] {
+  const withVariance = rows.filter((row) => row.varianceCents !== null);
+  if (withVariance.length === 0) {
+    return {
+      largestOverrun: null,
+      largestUnderrun: null,
+    };
+  }
+
+  const largestOverrun = [...withVariance]
+    .filter((row) => (row.varianceCents ?? 0) > 0)
+    .sort((a, b) => (b.varianceCents ?? 0) - (a.varianceCents ?? 0))[0] ?? null;
+  const largestUnderrun = [...withVariance]
+    .filter((row) => (row.varianceCents ?? 0) < 0)
+    .sort((a, b) => (a.varianceCents ?? 0) - (b.varianceCents ?? 0))[0] ?? null;
+
+  return {
+    largestOverrun,
+    largestUnderrun,
+  };
+}
+
 export async function getUtilityProjectionData(monthKey: string): Promise<UtilityProjectionData> {
   const projections = await prisma.utilityProjection.findMany({
     where: { monthKey },
@@ -70,5 +96,6 @@ export async function getUtilityProjectionData(monthKey: string): Promise<Utilit
     monthKey,
     rows,
     summary: buildProjectionSummary(rows),
+    outliers: buildProjectionOutliers(rows),
   };
 }

@@ -96,6 +96,12 @@ export type DashboardData = {
     createdAt: Date;
     monthKey: string | null;
   }[];
+  closeHealthScorePct: number;
+};
+
+export type DashboardOptions = {
+  forecastWeeks?: 4 | 8 | 12;
+  riskOnlyForecast?: boolean;
 };
 
 function getStatus(args: { dueDate: string; todayDate: string; isPaid: boolean }): BillStatus {
@@ -150,9 +156,10 @@ function addDays(date: Date, days: number): Date {
 function buildCashflowForecastWeeks(args: {
   bills: { name: string; amountCents: number; recurrenceRule: string }[];
   now: Date;
-  horizonDays?: number;
+  horizonWeeks?: 4 | 8 | 12;
+  riskOnly?: boolean;
 }): DashboardData["cashflowForecastWeeks"] {
-  const horizonDays = args.horizonDays ?? 56;
+  const horizonDays = (args.horizonWeeks ?? 8) * 7;
   const startDate = dateStringInTimezone(args.now);
   const endDate = dateStringInTimezone(addDays(args.now, horizonDays));
   const [startYear, startMonth] = startDate.split("-").map(Number);
@@ -189,10 +196,11 @@ function buildCashflowForecastWeeks(args: {
   }
 
   const average = weeks.length === 0 ? 0 : weeks.reduce((sum, week) => sum + week.totalCents, 0) / weeks.length;
-  return weeks.map((week) => ({
+  const withRisk = weeks.map((week) => ({
     ...week,
     isRisk: week.totalCents > average * 1.35 && week.totalCents > 0,
   }));
+  return args.riskOnly ? withRisk.filter((week) => week.isRisk) : withRisk;
 }
 
 function buildAnomalyAlerts(args: {
@@ -232,7 +240,7 @@ function buildAnomalyAlerts(args: {
   return alerts.slice(0, 6);
 }
 
-export async function getDashboardData(now = new Date()): Promise<DashboardData> {
+export async function getDashboardData(now = new Date(), options: DashboardOptions = {}): Promise<DashboardData> {
   const monthKey = monthKeyFromDate(now);
   const todayDate = dateStringInTimezone(now);
   const [year, month] = monthKey.split("-").map(Number);
@@ -351,6 +359,8 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
   const cashflowForecastWeeks = buildCashflowForecastWeeks({
     bills,
     now,
+    horizonWeeks: options.forecastWeeks,
+    riskOnly: options.riskOnlyForecast,
   });
   const anomalyAlerts = buildAnomalyAlerts({
     monthKey,
@@ -358,6 +368,12 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     cashflowThisMonthCostCents,
     totalMonthlyCostCents,
   });
+
+  const closeHealthScorePct = Math.round(
+    (paidRatePct * 0.5) +
+      (Math.min(utilityProjectionSummary.actualCoverageCount * 10, 30)) +
+      (Math.max(0, 20 - anomalyAlerts.length * 5)),
+  );
 
   return {
     monthKey,
@@ -391,5 +407,6 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     cashflowForecastWeeks,
     anomalyAlerts,
     recentActivity,
+    closeHealthScorePct: Math.max(0, Math.min(100, closeHealthScorePct)),
   };
 }

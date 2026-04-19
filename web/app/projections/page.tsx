@@ -150,6 +150,31 @@ export default async function ProjectionsPage({ searchParams }: Props) {
           </article>
         </section>
 
+        <section className="grid gap-3 sm:grid-cols-2">
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Largest overrun</p>
+            {projectionData.outliers.largestOverrun ? (
+              <p className="mt-1 text-sm font-medium">
+                {projectionData.outliers.largestOverrun.category} ·{" "}
+                <span className="font-data">{formatCurrency(projectionData.outliers.largestOverrun.varianceCents ?? 0)}</span>
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-[color:var(--app-muted)]">No overruns with actual data yet.</p>
+            )}
+          </article>
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Largest underrun</p>
+            {projectionData.outliers.largestUnderrun ? (
+              <p className="mt-1 text-sm font-medium">
+                {projectionData.outliers.largestUnderrun.category} ·{" "}
+                <span className="font-data">{formatCurrency(projectionData.outliers.largestUnderrun.varianceCents ?? 0)}</span>
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-[color:var(--app-muted)]">No underruns with actual data yet.</p>
+            )}
+          </article>
+        </section>
+
         <section className="grid gap-3 sm:grid-cols-3">
           <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Previous month planned</p>

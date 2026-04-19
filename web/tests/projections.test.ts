@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  buildProjectionOutliers,
   buildProjectionSummary,
   normalizeProjectionCategory,
   resolveProjectionMonthKey,
@@ -31,5 +32,16 @@ describe("projections helpers", () => {
       varianceTotalCents: -4500,
       actualCoverageCount: 2,
     });
+  });
+
+  test("finds largest overrun and underrun categories", () => {
+    const outliers = buildProjectionOutliers([
+      { id: "1", category: "hydro", plannedCents: 10000, actualCents: 14000, varianceCents: 4000 },
+      { id: "2", category: "gas", plannedCents: 12000, actualCents: 9000, varianceCents: -3000 },
+      { id: "3", category: "water", plannedCents: 8000, actualCents: 8200, varianceCents: 200 },
+    ]);
+
+    expect(outliers.largestOverrun?.category).toBe("hydro");
+    expect(outliers.largestUnderrun?.category).toBe("gas");
   });
 });

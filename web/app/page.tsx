@@ -18,6 +18,17 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
+function parseForecastWeeks(raw: string | string[] | undefined): 4 | 8 | 12 {
+  if (raw === "4" || raw === "12") {
+    return Number(raw) as 4 | 12;
+  }
+  return 8;
+}
+
+function parseRiskOnly(raw: string | string[] | undefined): boolean {
+  return raw === "1" || raw === "true";
+}
+
 function statusClasses(status: string): string {
   if (status === "overdue") {
     return "border-[color:var(--app-error)]/20 bg-[color:var(--app-error)]/12 text-[color:var(--app-error)]";
@@ -41,7 +52,12 @@ export default async function Home({ searchParams }: Props) {
   }
 
   const params = await searchParams;
-  const [dashboard, analytics] = await Promise.all([getDashboardData(), getAnalyticsTrendData()]);
+  const forecastWeeks = parseForecastWeeks(params.forecastWeeks);
+  const riskOnlyForecast = parseRiskOnly(params.riskOnlyForecast);
+  const [dashboard, analytics] = await Promise.all([
+    getDashboardData(new Date(), { forecastWeeks, riskOnlyForecast }),
+    getAnalyticsTrendData(),
+  ]);
 
   return (
     <div className="min-h-screen text-[color:var(--app-foreground)]">
@@ -189,6 +205,13 @@ export default async function Home({ searchParams }: Props) {
               {dashboard.upgradeProjection.coverageCount} projects with actual values.
             </p>
           </article>
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Month close health score</p>
+            <p className="font-data mt-1 text-2xl font-semibold">{dashboard.closeHealthScorePct}%</p>
+            <p className="mt-1 text-xs text-[color:var(--app-muted)]">
+              Blend of paid-rate, coverage, and anomaly load.
+            </p>
+          </article>
         </section>
 
         <section className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
@@ -224,7 +247,30 @@ export default async function Home({ searchParams }: Props) {
         </section>
 
         <section className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
-          <h2 className="text-base font-semibold">Cashflow Calendar (8 weeks)</h2>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <h2 className="text-base font-semibold">Cashflow Calendar</h2>
+            <form method="get" className="flex flex-wrap items-end gap-2">
+              <label className="grid gap-1 text-xs text-[color:var(--app-muted)]">
+                Horizon
+                <select
+                  name="forecastWeeks"
+                  defaultValue={String(forecastWeeks)}
+                  className="rounded border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-2 py-1 text-sm"
+                >
+                  <option value="4">4 weeks</option>
+                  <option value="8">8 weeks</option>
+                  <option value="12">12 weeks</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-1 rounded border border-[color:var(--app-border)] px-2 py-1 text-xs text-[color:var(--app-muted)]">
+                <input type="checkbox" name="riskOnlyForecast" value="1" defaultChecked={riskOnlyForecast} />
+                Risk weeks only
+              </label>
+              <button type="submit" className="rounded bg-[color:var(--app-accent)] px-3 py-1 text-xs font-semibold text-white">
+                Apply
+              </button>
+            </form>
+          </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {dashboard.cashflowForecastWeeks.map((week) => (
               <article key={week.label} className="rounded-md border border-[color:var(--app-border)] px-3 py-2">
@@ -238,6 +284,9 @@ export default async function Home({ searchParams }: Props) {
               </article>
             ))}
           </div>
+          {dashboard.cashflowForecastWeeks.length === 0 ? (
+            <p className="mt-2 text-xs text-[color:var(--app-muted)]">No risk weeks in this horizon.</p>
+          ) : null}
         </section>
 
         <section className="grid gap-3 lg:grid-cols-3">
