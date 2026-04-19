@@ -23,6 +23,13 @@ enum ScenarioItemType {
   one_time
 }
 
+enum AnalyticsJobStatus {
+  queued
+  processing
+  completed
+  failed
+}
+
 model User {
   id           String   @id @default(cuid())
   username     String   @unique
@@ -104,4 +111,55 @@ model ScenarioItem {
   scenario         Scenario         @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
 
   @@index([scenarioId, itemType])
+}
+
+model AnalyticsSnapshotDaily {
+  id                        String   @id @default(cuid())
+  dayKey                    String   @unique
+  monthKey                  String
+  totalMonthlyCostCents     Int
+  projectedYearlyCostCents  Int
+  utilitiesTotalCents       Int
+  upgradesTotalCents        Int
+  paidRatePct               Int
+  topCategory               String?
+  topCategoryTotalCents     Int?
+  sourceEventKey            String
+  generatedAt               DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([monthKey, generatedAt])
+}
+
+model AnalyticsSnapshotMonthly {
+  id                        String   @id @default(cuid())
+  monthKey                  String   @unique
+  totalMonthlyCostCents     Int
+  projectedYearlyCostCents  Int
+  utilitiesTotalCents       Int
+  upgradesTotalCents        Int
+  paidRatePct               Int
+  topCategory               String?
+  topCategoryTotalCents     Int?
+  sourceEventKey            String
+  generatedAt               DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([generatedAt])
+}
+
+model AnalyticsRecomputeJob {
+  id             String             @id @default(cuid())
+  sourceEventKey String             @unique
+  triggerType    String
+  status         AnalyticsJobStatus @default(queued)
+  attempts       Int                @default(0)
+  queuedAt       DateTime           @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  failedAt       DateTime?
+  errorMessage   String?
+  updatedAt      DateTime           @updatedAt
+
+  @@index([status, queuedAt])
 }

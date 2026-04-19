@@ -7,6 +7,7 @@ import {
   logoutAction,
   markPaidAction,
 } from "@/app/actions";
+import { getAnalyticsTrendData } from "@/lib/analytics";
 import { getSession } from "@/lib/auth/session";
 import { getDashboardData } from "@/lib/dashboard";
 import { formatCurrency } from "@/lib/money";
@@ -35,7 +36,7 @@ export default async function Home({ searchParams }: Props) {
   }
 
   const params = await searchParams;
-  const dashboard = await getDashboardData();
+  const [dashboard, analytics] = await Promise.all([getDashboardData(), getAnalyticsTrendData()]);
 
   return (
     <div className="min-h-screen text-[color:var(--app-foreground)]">
@@ -99,6 +100,38 @@ export default async function Home({ searchParams }: Props) {
             <p className="text-sm text-[color:var(--app-muted)]">Upgrade spend</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.upgradesTotalCents)}</p>
           </article>
+        </section>
+
+        <section className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-base font-semibold">Monthly spend trend (snapshot)</h2>
+            {analytics.isStale ? (
+              <span className="rounded-full border border-[color:var(--app-warning)]/30 bg-[color:var(--app-warning)]/10 px-2 py-1 text-xs font-semibold text-[color:var(--app-warning)]">
+                Snapshot refreshing
+              </span>
+            ) : (
+              <span className="rounded-full border border-[color:var(--app-success)]/30 bg-[color:var(--app-success)]/10 px-2 py-1 text-xs font-semibold text-[color:var(--app-success)]">
+                Up to date
+              </span>
+            )}
+          </div>
+          {analytics.points.length === 0 ? (
+            <p className="mt-2 text-sm text-[color:var(--app-muted)]">
+              Trends will appear after the first analytics snapshot is generated.
+            </p>
+          ) : (
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {analytics.points.slice(-4).map((point) => (
+                <li
+                  key={point.monthKey}
+                  className="flex items-center justify-between rounded-md border border-[color:var(--app-border)] px-3 py-2"
+                >
+                  <span className="font-data text-sm text-[color:var(--app-muted)]">{point.monthKey}</span>
+                  <span className="font-data text-sm font-semibold">{formatCurrency(point.totalMonthlyCostCents)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="grid gap-3 lg:grid-cols-3">

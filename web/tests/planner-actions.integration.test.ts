@@ -30,6 +30,12 @@ vi.mock("@/lib/auth/user-auth", () => ({
   authenticateUser: vi.fn(),
 }));
 
+vi.mock("@/lib/analytics", () => ({
+  enqueueAnalyticsRecompute: vi.fn().mockResolvedValue(undefined),
+  processQueuedAnalyticsJobs: vi.fn().mockResolvedValue(0),
+  getAnalyticsTrendData: vi.fn().mockResolvedValue({ points: [], isStale: true, lastUpdatedAt: null }),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: transactionMock,

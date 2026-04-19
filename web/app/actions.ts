@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { authenticateUser } from "@/lib/auth/user-auth";
+import { enqueueAnalyticsRecompute, processQueuedAnalyticsJobs } from "@/lib/analytics";
 import { clearSession, createSession, getSession } from "@/lib/auth/session";
 import { getClock } from "@/lib/clock";
 import { buildScenarioProjectionItems } from "@/lib/planner-builder";
@@ -95,7 +96,7 @@ export async function addBillAction(formData: FormData): Promise<void> {
     }
   }
 
-  await prisma.bill.create({
+  const createdBill = await prisma.bill.create({
     data: {
       name: parsed.data.name.trim(),
       category: parsed.data.category.trim(),
@@ -103,6 +104,11 @@ export async function addBillAction(formData: FormData): Promise<void> {
       recurrenceRule,
     },
   });
+  await enqueueAnalyticsRecompute({
+    sourceEventKey: `bill_created:${createdBill.id}:${createdBill.updatedAt.toISOString()}`,
+    triggerType: "bill_created",
+  });
+  void processQueuedAnalyticsJobs({ limit: 2 });
 
   revalidatePath("/");
 }
@@ -132,7 +138,7 @@ export async function markPaidAction(formData: FormData): Promise<void> {
   const paymentEventKey = `${monthKey}:${bill.id}`;
 
   try {
-    await prisma.payment.create({
+    const payment = await prisma.payment.create({
       data: {
         billId: bill.id,
         amountCents: bill.amountCents,
@@ -140,6 +146,12 @@ export async function markPaidAction(formData: FormData): Promise<void> {
         paymentEventKey,
       },
     });
+    await enqueueAnalyticsRecompute({
+      sourceEventKey: `payment_marked:${payment.paymentEventKey}`,
+      triggerType: "payment_marked",
+      at: payment.paidAt,
+    });
+    void processQueuedAnalyticsJobs({ limit: 2 });
   } catch {
     // Duplicate click or replay for same month should be a no-op.
   }
@@ -159,7 +171,7 @@ export async function addUpgradeAction(formData: FormData): Promise<void> {
     redirect("/?error=invalid_upgrade_input");
   }
 
-  await prisma.upgrade.create({
+  const createdUpgrade = await prisma.upgrade.create({
     data: {
       title: parsed.data.title.trim(),
       category: parsed.data.category.trim(),
@@ -167,6 +179,12 @@ export async function addUpgradeAction(formData: FormData): Promise<void> {
       loggedAt: new Date(),
     },
   });
+  await enqueueAnalyticsRecompute({
+    sourceEventKey: `upgrade_created:${createdUpgrade.id}:${createdUpgrade.updatedAt.toISOString()}`,
+    triggerType: "upgrade_created",
+    at: createdUpgrade.loggedAt,
+  });
+  void processQueuedAnalyticsJobs({ limit: 2 });
 
   revalidatePath("/");
 }
@@ -418,6 +436,12 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
     }
     redirect("/planner?error=scenario_apply_failed");
   });
+  await enqueueAnalyticsRecompute({
+    sourceEventKey: `scenario_applied:${scenarioId}:${expectedVersion}`,
+    triggerType: "scenario_applied",
+    at: now,
+  });
+  void processQueuedAnalyticsJobs({ limit: 2 });
 
   revalidatePath("/planner");
   revalidatePath("/");
