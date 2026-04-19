@@ -54,6 +54,15 @@ enum ActivityAction {
   scenario_applied
   month_closed
   month_reopened
+  budget_imported
+  budget_target_saved
+  budget_transaction_updated
+}
+
+enum BudgetImportStatus {
+  queued
+  completed
+  failed
 }
 
 model User {
@@ -297,4 +306,86 @@ model ActivityLog {
 
   @@index([createdAt])
   @@index([monthKey, createdAt])
+}
+
+model BudgetAccount {
+  id           String            @id @default(cuid())
+  name         String
+  institution  String            @default("")
+  currencyCode String            @default("CAD")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  imports      BudgetImportBatch[]
+  transactions BudgetTransaction[]
+
+  @@unique([name, institution])
+}
+
+model BudgetImportBatch {
+  id             String           @id @default(cuid())
+  accountId      String
+  monthKey       String
+  status         BudgetImportStatus @default(queued)
+  rowCount       Int              @default(0)
+  importedCount  Int              @default(0)
+  duplicateCount Int              @default(0)
+  errorMessage   String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  account        BudgetAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  transactions   BudgetTransaction[]
+
+  @@index([monthKey, createdAt])
+}
+
+model BudgetTransaction {
+  id               String           @id @default(cuid())
+  accountId        String
+  importBatchId    String?
+  postedAt         DateTime
+  monthKey         String
+  description      String
+  normalizedMerchant String
+  amountCents      Int
+  category         String
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  account          BudgetAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  importBatch      BudgetImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@index([monthKey, postedAt])
+  @@index([normalizedMerchant, postedAt])
+}
+
+model BudgetCategoryRule {
+  id         String   @id @default(cuid())
+  matchText  String
+  category   String
+  priority   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([matchText, category])
+  @@index([priority])
+}
+
+model BudgetMonthlyTarget {
+  id         String   @id @default(cuid())
+  monthKey   String
+  category   String
+  targetCents Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([monthKey, category])
+  @@index([monthKey, category])
+}
+
+model BudgetTxnMatch {
+  id          String   @id @default(cuid())
+  fingerprint String   @unique
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
 }

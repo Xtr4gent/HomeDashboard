@@ -1,0 +1,366 @@
+import { prisma } from "@/lib/prisma";
+import { toCents } from "@/lib/money";
+import { monthKeyFromDate } from "@/lib/time";
+
+export type ParsedCsvData = {
+  headers: string[];
+  rows: string[][];
+};
+
+export type BudgetOverview = {
+  incomeCents: number;
+  expensesCents: number;
+  netCents: number;
+  transactionCount: number;
+  uncategorizedCount: number;
+};
+
+export type BudgetTrendPoint = {
+  monthKey: string;
+  outflowCents: number;
+  inflowCents: number;
+  netCents: number;
+};
+
+export type RecurringInsight = {
+  merchant: string;
+  count: number;
+  averageAmountCents: number;
+  estimatedNextDate: string | null;
+};
+
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === "\"") {
+      if (inQuotes && line[index + 1] === "\"") {
+        current += "\"";
+        index += 1;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (char === "," && !inQuotes) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+export function parseCsv(content: string): ParsedCsvData {
+  const lines = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) {
+    return { headers: [], rows: [] };
+  }
+  const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase());
+  const rows = lines.slice(1).map((line) => parseCsvLine(line));
+  return { headers, rows };
+}
+
+function parseAmount(raw: string): number {
+  const normalized = raw.replace(/[$,]/g, "").trim();
+  if (!normalized) {
+    return 0;
+  }
+  return toCents(Number(normalized), { allowZero: true });
+}
+
+export function normalizeMerchantName(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function buildBudgetFingerprint(args: {
+  postedAt: Date;
+  normalizedMerchant: string;
+  amountCents: number;
+}): string {
+  const dateKey = args.postedAt.toISOString().slice(0, 10);
+  return `${dateKey}:${args.normalizedMerchant}:${Math.abs(args.amountCents)}`;
+}
+
+function fallbackCategory(description: string): string {
+  const normalized = description.toLowerCase();
+  if (normalized.includes("grocery") || normalized.includes("superstore") || normalized.includes("market")) {
+    return "groceries";
+  }
+  if (normalized.includes("hydro") || normalized.includes("gas bill") || normalized.includes("water")) {
+    return "utilities";
+  }
+  if (normalized.includes("mortgage") || normalized.includes("rent")) {
+    return "housing";
+  }
+  if (normalized.includes("uber") || normalized.includes("transit") || normalized.includes("fuel")) {
+    return "transport";
+  }
+  return "uncategorized";
+}
+
+export function summarizeBudgetTransactions(
+  transactions: Array<{ amountCents: number; category: string }>,
+): BudgetOverview {
+  const incomeCents = transactions.filter((row) => row.amountCents > 0).reduce((sum, row) => sum + row.amountCents, 0);
+  const expensesCents = transactions.filter((row) => row.amountCents < 0).reduce((sum, row) => sum + Math.abs(row.amountCents), 0);
+  const uncategorizedCount = transactions.filter((row) => row.category === "uncategorized").length;
+  return {
+    incomeCents,
+    expensesCents,
+    netCents: incomeCents - expensesCents,
+    transactionCount: transactions.length,
+    uncategorizedCount,
+  };
+}
+
+export async function importBudgetCsv(args: {
+  accountName: string;
+  institution?: string;
+  monthKey: string;
+  csvContent: string;
+}) {
+  const parsed = parseCsv(args.csvContent);
+  if (parsed.headers.length === 0) {
+    throw new Error("CSV is empty.");
+  }
+
+  const dateIndex = parsed.headers.findIndex((header) => header.includes("date"));
+  const descriptionIndex = parsed.headers.findIndex((header) => header.includes("description") || header.includes("merchant"));
+  const amountIndex = parsed.headers.findIndex((header) => header === "amount" || header.includes("amount"));
+  const debitIndex = parsed.headers.findIndex((header) => header.includes("debit"));
+  const creditIndex = parsed.headers.findIndex((header) => header.includes("credit"));
+  if (dateIndex < 0 || descriptionIndex < 0 || (amountIndex < 0 && debitIndex < 0 && creditIndex < 0)) {
+    throw new Error("CSV is missing date/description/amount columns.");
+  }
+
+  const account = await prisma.budgetAccount.upsert({
+    where: {
+      name_institution: {
+        name: args.accountName.trim(),
+        institution: args.institution?.trim() || "",
+      },
+    },
+    update: {},
+    create: {
+      name: args.accountName.trim(),
+      institution: args.institution?.trim() || "",
+    },
+  });
+
+  const rules = await prisma.budgetCategoryRule.findMany({
+    orderBy: { priority: "desc" },
+  });
+
+  const batch = await prisma.budgetImportBatch.create({
+    data: {
+      accountId: account.id,
+      monthKey: args.monthKey,
+      status: "queued",
+      rowCount: parsed.rows.length,
+    },
+  });
+
+  let importedCount = 0;
+  let duplicateCount = 0;
+  for (const row of parsed.rows) {
+    const postedAt = new Date(row[dateIndex] ?? "");
+    if (Number.isNaN(postedAt.getTime())) {
+      continue;
+    }
+    const description = (row[descriptionIndex] ?? "").trim();
+    if (!description) {
+      continue;
+    }
+    let amountCents = 0;
+    if (amountIndex >= 0) {
+      amountCents = parseAmount(row[amountIndex] ?? "");
+    } else {
+      const debitCents = debitIndex >= 0 ? parseAmount(row[debitIndex] ?? "") : 0;
+      const creditCents = creditIndex >= 0 ? parseAmount(row[creditIndex] ?? "") : 0;
+      amountCents = creditCents - debitCents;
+    }
+    if (amountCents === 0) {
+      continue;
+    }
+    const normalizedMerchant = normalizeMerchantName(description);
+    const fingerprint = buildBudgetFingerprint({
+      postedAt,
+      normalizedMerchant,
+      amountCents,
+    });
+    const match = await prisma.budgetTxnMatch.findUnique({ where: { fingerprint } });
+    if (match) {
+      duplicateCount += 1;
+      continue;
+    }
+
+    const normalizedDescription = description.toLowerCase();
+    const matchedRule = rules.find((rule) => normalizedDescription.includes(rule.matchText.toLowerCase()));
+    const category = matchedRule?.category ?? fallbackCategory(description);
+    await prisma.$transaction(async (tx) => {
+      await tx.budgetTxnMatch.create({ data: { fingerprint } });
+      await tx.budgetTransaction.create({
+        data: {
+          accountId: account.id,
+          importBatchId: batch.id,
+          postedAt,
+          monthKey: monthKeyFromDate(postedAt),
+          description,
+          normalizedMerchant,
+          amountCents,
+          category,
+        },
+      });
+    });
+    importedCount += 1;
+  }
+
+  await prisma.budgetImportBatch.update({
+    where: { id: batch.id },
+    data: {
+      importedCount,
+      duplicateCount,
+      status: "completed",
+    },
+  });
+
+  return {
+    batchId: batch.id,
+    importedCount,
+    duplicateCount,
+    rowCount: parsed.rows.length,
+  };
+}
+
+function shiftMonth(monthKey: string, offset: number): string {
+  const [yearText, monthText] = monthKey.split("-");
+  const date = new Date(Date.UTC(Number(yearText), Number(monthText) - 1 + offset, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+export async function getBudgetPageData(monthKey: string) {
+  const [transactions, targets, accounts, batches, allRecent] = await Promise.all([
+    prisma.budgetTransaction.findMany({
+      where: { monthKey },
+      orderBy: { postedAt: "desc" },
+      take: 300,
+    }),
+    prisma.budgetMonthlyTarget.findMany({
+      where: { monthKey },
+      orderBy: { category: "asc" },
+    }),
+    prisma.budgetAccount.findMany({
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.budgetImportBatch.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      include: { account: true },
+    }),
+    prisma.budgetTransaction.findMany({
+      where: { monthKey: { in: [shiftMonth(monthKey, -5), shiftMonth(monthKey, -4), shiftMonth(monthKey, -3), shiftMonth(monthKey, -2), shiftMonth(monthKey, -1), monthKey] } },
+      orderBy: { postedAt: "asc" },
+    }),
+  ]);
+
+  const overview = summarizeBudgetTransactions(transactions);
+  const categoryActuals = new Map<string, number>();
+  for (const transaction of transactions) {
+    if (transaction.amountCents >= 0) {
+      continue;
+    }
+    const current = categoryActuals.get(transaction.category) ?? 0;
+    categoryActuals.set(transaction.category, current + Math.abs(transaction.amountCents));
+  }
+
+  const budgets = targets.map((target) => ({
+    category: target.category,
+    targetCents: target.targetCents,
+    actualCents: categoryActuals.get(target.category) ?? 0,
+    varianceCents: (categoryActuals.get(target.category) ?? 0) - target.targetCents,
+  }));
+
+  const merchantGroups = new Map<string, Date[]>();
+  const merchantAmounts = new Map<string, number[]>();
+  for (const transaction of allRecent) {
+    if (transaction.amountCents >= 0) {
+      continue;
+    }
+    const key = transaction.normalizedMerchant;
+    merchantGroups.set(key, [...(merchantGroups.get(key) ?? []), transaction.postedAt]);
+    merchantAmounts.set(key, [...(merchantAmounts.get(key) ?? []), Math.abs(transaction.amountCents)]);
+  }
+  const recurring: RecurringInsight[] = [];
+  for (const [merchant, dates] of merchantGroups.entries()) {
+    if (dates.length < 2) {
+      continue;
+    }
+    const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
+    const intervals: number[] = [];
+    for (let index = 1; index < sorted.length; index += 1) {
+      const gapDays = Math.round((sorted[index].getTime() - sorted[index - 1].getTime()) / (1000 * 60 * 60 * 24));
+      intervals.push(gapDays);
+    }
+    const averageInterval = intervals.reduce((sum, value) => sum + value, 0) / intervals.length;
+    if (averageInterval < 20 || averageInterval > 45) {
+      continue;
+    }
+    const amounts = merchantAmounts.get(merchant) ?? [];
+    const averageAmountCents =
+      amounts.length === 0 ? 0 : Math.round(amounts.reduce((sum, value) => sum + value, 0) / amounts.length);
+    const lastDate = sorted[sorted.length - 1];
+    const estimatedNext = new Date(lastDate);
+    estimatedNext.setUTCDate(estimatedNext.getUTCDate() + Math.round(averageInterval));
+    recurring.push({
+      merchant,
+      count: dates.length,
+      averageAmountCents,
+      estimatedNextDate: estimatedNext.toISOString().slice(0, 10),
+    });
+  }
+
+  const trendMap = new Map<string, { inflowCents: number; outflowCents: number }>();
+  for (const transaction of allRecent) {
+    const bucket = trendMap.get(transaction.monthKey) ?? { inflowCents: 0, outflowCents: 0 };
+    if (transaction.amountCents >= 0) {
+      bucket.inflowCents += transaction.amountCents;
+    } else {
+      bucket.outflowCents += Math.abs(transaction.amountCents);
+    }
+    trendMap.set(transaction.monthKey, bucket);
+  }
+  const trends: BudgetTrendPoint[] = [...trendMap.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, totals]) => ({
+      monthKey: month,
+      inflowCents: totals.inflowCents,
+      outflowCents: totals.outflowCents,
+      netCents: totals.inflowCents - totals.outflowCents,
+    }));
+
+  return {
+    monthKey,
+    overview,
+    transactions,
+    budgets,
+    trends,
+    recurring: recurring.slice(0, 12),
+    accounts,
+    batches,
+    categoriesWithoutTargets: [...categoryActuals.keys()].filter(
+      (category) => !targets.some((target) => target.category === category),
+    ),
+  };
+}

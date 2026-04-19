@@ -9,6 +9,7 @@ import { authenticateUser } from "@/lib/auth/user-auth";
 import { enqueueAnalyticsRecompute, processQueuedAnalyticsJobs } from "@/lib/analytics";
 import { clearSession, createSession, getSession } from "@/lib/auth/session";
 import { getClock } from "@/lib/clock";
+import { importBudgetCsv } from "@/lib/budget";
 import { buildScenarioProjectionItems } from "@/lib/planner-builder";
 import { getDashboardData } from "@/lib/dashboard";
 import { toCents } from "@/lib/money";
@@ -82,6 +83,18 @@ const monthCloseSchema = z.object({
   monthKey: z.string().min(1),
 });
 
+const importBudgetCsvSchema = z.object({
+  accountName: z.string().min(1),
+  institution: z.string().optional(),
+  monthKey: z.string().min(1),
+});
+
+const saveBudgetTargetSchema = z.object({
+  monthKey: z.string().min(1),
+  category: z.string().min(1),
+  targetAmount: z.string().min(1),
+});
+
 export async function loginAction(formData: FormData): Promise<void> {
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
@@ -126,7 +139,10 @@ async function logActivity(args: {
     | "scenario_saved"
     | "scenario_applied"
     | "month_closed"
-    | "month_reopened";
+    | "month_reopened"
+    | "budget_imported"
+    | "budget_target_saved"
+    | "budget_transaction_updated";
   actorUsername: string;
   entityType: string;
   entityId?: string;
@@ -1003,4 +1019,99 @@ export async function reopenMonthAction(formData: FormData): Promise<void> {
     });
   }
   revalidatePath("/");
+}
+
+export async function importBudgetCsvAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const parsed = importBudgetCsvSchema.safeParse({
+    accountName: String(formData.get("accountName") ?? ""),
+    institution: String(formData.get("institution") ?? "").trim() || undefined,
+    monthKey: String(formData.get("monthKey") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/budget?error=invalid_budget_import");
+  }
+
+  const csvFile = formData.get("csvFile");
+  if (!(csvFile instanceof File) || csvFile.size === 0) {
+    redirect(`/budget?month=${encodeURIComponent(parsed.data.monthKey)}&tab=accounts&error=missing_csv_file`);
+  }
+
+  const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
+  const csvContent = await csvFile.text();
+  try {
+    const result = await importBudgetCsv({
+      accountName: parsed.data.accountName,
+      institution: parsed.data.institution,
+      monthKey,
+      csvContent,
+    });
+    await logActivity({
+      action: "budget_imported",
+      actorUsername: session.username,
+      entityType: "budget_import_batch",
+      entityId: result.batchId,
+      monthKey,
+      summary: `Imported ${result.importedCount} transactions (${result.duplicateCount} duplicates)`,
+      metadata: {
+        importedCount: result.importedCount,
+        duplicateCount: result.duplicateCount,
+      },
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "budget_import_failed";
+    redirect(`/budget?month=${encodeURIComponent(monthKey)}&tab=accounts&error=${encodeURIComponent(message)}`);
+  }
+
+  revalidatePath("/budget");
+}
+
+export async function saveBudgetTargetAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const parsed = saveBudgetTargetSchema.safeParse({
+    monthKey: String(formData.get("monthKey") ?? ""),
+    category: String(formData.get("category") ?? ""),
+    targetAmount: String(formData.get("targetAmount") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/budget?error=invalid_budget_target");
+  }
+  const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
+  const category = parsed.data.category.trim().toLowerCase();
+  if (!category) {
+    redirect(`/budget?month=${encodeURIComponent(monthKey)}&tab=budgets&error=invalid_budget_category`);
+  }
+
+  let targetCents = 0;
+  try {
+    targetCents = toCents(parsed.data.targetAmount, { allowZero: true });
+  } catch {
+    redirect(`/budget?month=${encodeURIComponent(monthKey)}&tab=budgets&error=invalid_budget_target`);
+  }
+
+  const target = await prisma.budgetMonthlyTarget.upsert({
+    where: {
+      monthKey_category: {
+        monthKey,
+        category,
+      },
+    },
+    update: {
+      targetCents,
+    },
+    create: {
+      monthKey,
+      category,
+      targetCents,
+    },
+  });
+  await logActivity({
+    action: "budget_target_saved",
+    actorUsername: session.username,
+    entityType: "budget_monthly_target",
+    entityId: target.id,
+    monthKey,
+    summary: `Saved budget target for ${category}`,
+  });
+  revalidatePath("/budget");
 }

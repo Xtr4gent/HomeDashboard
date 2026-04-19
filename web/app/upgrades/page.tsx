@@ -72,6 +72,12 @@ export default async function UpgradesPage({ searchParams }: Props) {
                 Planner Lab
               </Link>
               <Link
+                href="/budget"
+                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
+              >
+                Budget
+              </Link>
+              <Link
                 href="/projections"
                 className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
               >
