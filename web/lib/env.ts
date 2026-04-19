@@ -2,12 +2,8 @@ import { z } from "zod";
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
-  APP_TIMEZONE: z.string().min(1),
+  APP_TIMEZONE: z.string().min(1).default("UTC"),
   SESSION_SECRET: z.string().min(16),
-  HOUSEHOLD_ACCOUNT_1_USERNAME: z.string().min(1),
-  HOUSEHOLD_ACCOUNT_1_PASSWORD: z.string().min(1),
-  HOUSEHOLD_ACCOUNT_2_USERNAME: z.string().min(1),
-  HOUSEHOLD_ACCOUNT_2_PASSWORD: z.string().min(1),
 });
 
 const isProductionBuildPhase =
@@ -17,10 +13,6 @@ const buildTimeFallbacks = {
   DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/home_dashboard?schema=public",
   APP_TIMEZONE: "UTC",
   SESSION_SECRET: "build-only-session-secret-placeholder",
-  HOUSEHOLD_ACCOUNT_1_USERNAME: "build-user-1",
-  HOUSEHOLD_ACCOUNT_1_PASSWORD: "build-password-1",
-  HOUSEHOLD_ACCOUNT_2_USERNAME: "build-user-2",
-  HOUSEHOLD_ACCOUNT_2_PASSWORD: "build-password-2",
 } as const;
 
 const rawEnv = isProductionBuildPhase
