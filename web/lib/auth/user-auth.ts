@@ -65,9 +65,10 @@ export async function authenticateUser(
   }
 
   const isValid = await bcrypt.compare(password, user.passwordHash);
-  if (!isValid) {
-    return null;
+  if (isValid) {
+    return { id: user.id, username: user.username };
   }
 
-  return { id: user.id, username: user.username };
+  // If bootstrap credentials are configured, allow them to repair stale hashes.
+  return tryBootstrapUser(normalized, password);
 }
