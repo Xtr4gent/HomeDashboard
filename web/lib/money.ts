@@ -1,7 +1,13 @@
-export function toCents(rawAmount: string): number {
-  const parsed = Number(rawAmount);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error("Amount must be a positive number.");
+export type ToCentsOptions = {
+  allowZero?: boolean;
+};
+
+export function toCents(rawAmount: string | number, options: ToCentsOptions = {}): number {
+  const parsed = typeof rawAmount === "number" ? rawAmount : Number(rawAmount);
+  const allowZero = options.allowZero ?? false;
+
+  if (!Number.isFinite(parsed) || (allowZero ? parsed < 0 : parsed <= 0)) {
+    throw new Error(allowZero ? "Amount must be zero or greater." : "Amount must be a positive number.");
   }
 
   return Math.round(parsed * 100);

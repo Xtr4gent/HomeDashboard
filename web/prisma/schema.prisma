@@ -37,6 +37,7 @@ model Bill {
   category       String
   amountCents    Int
   recurrenceRule String
+  sourceScenarioItemId String? @unique
   archivedAt     DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -61,6 +62,7 @@ model Upgrade {
   costCents  Int
   loggedAt   DateTime
   category   String
+  sourceScenarioItemId String? @unique
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

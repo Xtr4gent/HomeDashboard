@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { authenticateUser } from "@/lib/auth/user-auth";
 import { clearSession, createSession, getSession } from "@/lib/auth/session";
+import { getClock } from "@/lib/clock";
 import { buildScenarioProjectionItems } from "@/lib/planner-builder";
 import { toCents } from "@/lib/money";
 import {
@@ -172,6 +173,8 @@ export async function addUpgradeAction(formData: FormData): Promise<void> {
 
 export async function saveScenarioAction(formData: FormData): Promise<void> {
   await requireSession();
+  const clock = getClock();
+  const now = clock.now();
   const parsed = plannerInputSchema.safeParse({
     scenarioId: String(formData.get("scenarioId") ?? "").trim() || undefined,
     expectedVersion: String(formData.get("expectedVersion") ?? "").trim() || undefined,
@@ -196,7 +199,7 @@ export async function saveScenarioAction(formData: FormData): Promise<void> {
 
   const projectionItems = buildScenarioProjectionItems(parsed.data);
   const totals = aggregateScenarioTotals(projectionItems);
-  const defaultRecurrenceRule = buildMonthlyRecurrenceRule("monthly_day", new Date().getDate());
+  const defaultRecurrenceRule = buildMonthlyRecurrenceRule("monthly_day", now.getDate());
 
   await prisma.$transaction(async (tx) => {
     let scenarioId = parsed.data.scenarioId;
@@ -297,6 +300,8 @@ export async function saveScenarioAction(formData: FormData): Promise<void> {
 
 export async function applyScenarioAction(formData: FormData): Promise<void> {
   await requireSession();
+  const clock = getClock();
+  const now = clock.now();
   const scenarioId = String(formData.get("scenarioId") ?? "").trim();
   const expectedVersion = Number(String(formData.get("expectedVersion") ?? "").trim());
 
@@ -305,6 +310,33 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
   }
 
   await prisma.$transaction(async (tx) => {
+    // Claim scenario atomically so duplicate submits cannot race.
+    const claimed = await tx.scenario.updateMany({
+      where: {
+        id: scenarioId,
+        status: "draft",
+        version: expectedVersion,
+      },
+      data: {
+        version: { increment: 1 },
+      },
+    });
+
+    if (claimed.count === 0) {
+      const existing = await tx.scenario.findUnique({
+        where: { id: scenarioId },
+        select: { id: true, status: true, version: true },
+      });
+
+      if (!existing) {
+        throw new Error("Scenario not found.");
+      }
+      if (existing.status === "applied") {
+        return;
+      }
+      throw new Error("Stale scenario version.");
+    }
+
     const scenario = await tx.scenario.findUnique({
       where: { id: scenarioId },
       include: { items: true },
@@ -313,14 +345,8 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
     if (!scenario) {
       throw new Error("Scenario not found.");
     }
-    if (scenario.status === "applied") {
-      return;
-    }
-    if (scenario.version !== expectedVersion) {
-      throw new Error("Stale scenario version.");
-    }
 
-    const fallbackRecurrenceRule = buildMonthlyRecurrenceRule("monthly_day", new Date().getDate());
+    const fallbackRecurrenceRule = buildMonthlyRecurrenceRule("monthly_day", now.getDate());
 
     for (const item of scenario.items) {
       if (item.itemType === "recurring") {
@@ -330,6 +356,7 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
             category: item.category,
             amountCents: item.amountCents,
             recurrenceRule: item.recurrenceRule ?? fallbackRecurrenceRule,
+            sourceScenarioItemId: item.id,
           },
         });
         continue;
@@ -348,6 +375,7 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
             category: item.category,
             amountCents: financed.monthlyCents,
             recurrenceRule: item.recurrenceRule ?? fallbackRecurrenceRule,
+            sourceScenarioItemId: item.id,
           },
         });
 
@@ -357,7 +385,8 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
               title: item.label,
               category: "financed-upgrade",
               costCents: item.amountCents,
-              loggedAt: new Date(),
+              loggedAt: now,
+              sourceScenarioItemId: item.id,
             },
           });
         }
@@ -369,7 +398,8 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
           title: item.label,
           category: item.category,
           costCents: item.amountCents,
-          loggedAt: new Date(),
+          loggedAt: now,
+          sourceScenarioItemId: item.id,
         },
       });
     }
@@ -378,7 +408,7 @@ export async function applyScenarioAction(formData: FormData): Promise<void> {
       where: { id: scenario.id },
       data: {
         status: "applied",
-        appliedAt: new Date(),
+        appliedAt: now,
       },
     });
   }).catch((error: unknown) => {
