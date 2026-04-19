@@ -6,7 +6,13 @@ import { z } from "zod";
 
 import { authenticateUser } from "@/lib/auth/user-auth";
 import { clearSession, createSession, getSession } from "@/lib/auth/session";
+import { buildScenarioProjectionItems } from "@/lib/planner-builder";
 import { toCents } from "@/lib/money";
+import {
+  aggregateScenarioTotals,
+  projectFinancedItem,
+} from "@/lib/planner-math";
+import { plannerInputSchema } from "@/lib/planner-schema";
 import { prisma } from "@/lib/prisma";
 import { buildMonthlyRecurrenceRule, monthKeyFromDate } from "@/lib/time";
 
@@ -162,4 +168,225 @@ export async function addUpgradeAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/");
+}
+
+export async function saveScenarioAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const parsed = plannerInputSchema.safeParse({
+    scenarioId: String(formData.get("scenarioId") ?? "").trim() || undefined,
+    expectedVersion: String(formData.get("expectedVersion") ?? "").trim() || undefined,
+    name: String(formData.get("name") ?? ""),
+    notes: String(formData.get("notes") ?? ""),
+    mortgagePrincipal: String(formData.get("mortgagePrincipal") ?? ""),
+    mortgageRateAnnualPct: String(formData.get("mortgageRateAnnualPct") ?? ""),
+    mortgageTermMonths: String(formData.get("mortgageTermMonths") ?? ""),
+    propertyTaxMonthly: String(formData.get("propertyTaxMonthly") ?? ""),
+    insuranceMonthly: String(formData.get("insuranceMonthly") ?? ""),
+    utilitiesMonthly: String(formData.get("utilitiesMonthly") ?? ""),
+    otherMonthly: String(formData.get("otherMonthly") ?? ""),
+    upgradeOneTimeCost: String(formData.get("upgradeOneTimeCost") ?? ""),
+    upgradeSpreadMonths: String(formData.get("upgradeSpreadMonths") ?? ""),
+    upgradeRateAnnualPct: String(formData.get("upgradeRateAnnualPct") ?? ""),
+    compare: String(formData.get("compare") ?? ""),
+  });
+
+  if (!parsed.success) {
+    redirect("/planner?error=invalid_scenario_input");
+  }
+
+  const projectionItems = buildScenarioProjectionItems(parsed.data);
+  const totals = aggregateScenarioTotals(projectionItems);
+
+  await prisma.$transaction(async (tx) => {
+    let scenarioId = parsed.data.scenarioId;
+
+    if (scenarioId) {
+      const existing = await tx.scenario.findUnique({
+        where: { id: scenarioId },
+        select: { id: true, status: true, version: true },
+      });
+
+      if (!existing || existing.status === "applied") {
+        throw new Error("Cannot edit a missing or already-applied scenario.");
+      }
+      if (parsed.data.expectedVersion && parsed.data.expectedVersion !== existing.version) {
+        throw new Error("Scenario version conflict.");
+      }
+
+      await tx.scenario.update({
+        where: { id: scenarioId },
+        data: {
+          name: parsed.data.name,
+          notes: parsed.data.notes || null,
+          version: { increment: 1 },
+          monthlyTotalCents: totals.monthlyTotalCents,
+          yearlyTotalCents: totals.yearlyTotalCents,
+          financedMonthlyCents: totals.financedMonthlyCents,
+          recurringMonthlyCents: totals.recurringMonthlyCents,
+          oneTimeCents: totals.oneTimeCents,
+        },
+      });
+
+      await tx.scenarioItem.deleteMany({ where: { scenarioId } });
+    } else {
+      const created = await tx.scenario.create({
+        data: {
+          name: parsed.data.name,
+          notes: parsed.data.notes || null,
+          monthlyTotalCents: totals.monthlyTotalCents,
+          yearlyTotalCents: totals.yearlyTotalCents,
+          financedMonthlyCents: totals.financedMonthlyCents,
+          recurringMonthlyCents: totals.recurringMonthlyCents,
+          oneTimeCents: totals.oneTimeCents,
+        },
+        select: { id: true },
+      });
+      scenarioId = created.id;
+    }
+
+    const plannerItems = projectionItems.map((item) => {
+      if (item.kind === "recurring") {
+        return {
+          scenarioId,
+          label: item.label,
+          category: item.category,
+          itemType: "recurring" as const,
+          amountCents: item.monthlyCents,
+          recurrenceRule: "monthly_day_1",
+          termMonths: null,
+          annualRateBps: null,
+          sourceKind: null,
+        };
+      }
+      if (item.kind === "financed") {
+        return {
+          scenarioId,
+          label: item.label,
+          category: item.category,
+          itemType: "financed" as const,
+          amountCents: item.principalCents,
+          recurrenceRule: null,
+          termMonths: item.termMonths,
+          annualRateBps: item.annualRateBps,
+          sourceKind: item.category === "upgrade" ? "upgrade" : "housing",
+        };
+      }
+      return {
+        scenarioId,
+        label: item.label,
+        category: item.category,
+        itemType: "one_time" as const,
+        amountCents: item.oneTimeCents,
+        recurrenceRule: null,
+        termMonths: null,
+        annualRateBps: null,
+        sourceKind: "upgrade",
+      };
+    });
+
+    await tx.scenarioItem.createMany({ data: plannerItems });
+  }).catch(() => {
+    redirect("/planner?error=scenario_save_failed");
+  });
+
+  revalidatePath("/planner");
+  revalidatePath("/");
+  redirect("/planner?success=scenario_saved");
+}
+
+export async function applyScenarioAction(formData: FormData): Promise<void> {
+  await requireSession();
+  const scenarioId = String(formData.get("scenarioId") ?? "").trim();
+  const expectedVersion = Number(String(formData.get("expectedVersion") ?? "").trim());
+
+  if (!scenarioId || !Number.isInteger(expectedVersion) || expectedVersion <= 0) {
+    redirect("/planner?error=invalid_apply_request");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const scenario = await tx.scenario.findUnique({
+      where: { id: scenarioId },
+      include: { items: true },
+    });
+
+    if (!scenario) {
+      throw new Error("Scenario not found.");
+    }
+    if (scenario.status === "applied") {
+      return;
+    }
+    if (scenario.version !== expectedVersion) {
+      throw new Error("Stale scenario version.");
+    }
+
+    for (const item of scenario.items) {
+      if (item.itemType === "recurring") {
+        await tx.bill.create({
+          data: {
+            name: item.label,
+            category: item.category,
+            amountCents: item.amountCents,
+            recurrenceRule: item.recurrenceRule ?? "monthly_day_1",
+          },
+        });
+        continue;
+      }
+
+      if (item.itemType === "financed") {
+        const financed = projectFinancedItem({
+          principalCents: item.amountCents,
+          annualRateBps: item.annualRateBps ?? 0,
+          termMonths: item.termMonths ?? 1,
+        });
+
+        await tx.bill.create({
+          data: {
+            name: `${item.label} (financed)`,
+            category: item.category,
+            amountCents: financed.monthlyCents,
+            recurrenceRule: "monthly_day_1",
+          },
+        });
+
+        if (item.sourceKind === "upgrade") {
+          await tx.upgrade.create({
+            data: {
+              title: item.label,
+              category: "financed-upgrade",
+              costCents: item.amountCents,
+              loggedAt: new Date(),
+            },
+          });
+        }
+        continue;
+      }
+
+      await tx.upgrade.create({
+        data: {
+          title: item.label,
+          category: item.category,
+          costCents: item.amountCents,
+          loggedAt: new Date(),
+        },
+      });
+    }
+
+    await tx.scenario.update({
+      where: { id: scenario.id },
+      data: {
+        status: "applied",
+        appliedAt: new Date(),
+      },
+    });
+  }).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Stale scenario")) {
+      redirect("/planner?error=stale_scenario");
+    }
+    redirect("/planner?error=scenario_apply_failed");
+  });
+
+  revalidatePath("/planner");
+  revalidatePath("/");
+  redirect("/planner?success=scenario_applied");
 }

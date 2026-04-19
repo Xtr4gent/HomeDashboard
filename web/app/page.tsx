@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 import {
   addBillAction,
@@ -43,6 +44,17 @@ export default async function Home({ searchParams }: Props) {
           <div>
             <p className="text-sm text-[color:var(--app-muted)]">HomeDashboard</p>
             <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">House Ops Command Center</h1>
+            <div className="mt-3 flex items-center gap-2">
+              <span className="rounded-md bg-[color:var(--app-accent)] px-3 py-1 text-xs font-semibold text-white">
+                Dashboard
+              </span>
+              <Link
+                href="/planner"
+                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
+              >
+                Planner Lab
+              </Link>
+            </div>
           </div>
           <form action={logoutAction}>
             <button
@@ -86,6 +98,31 @@ export default async function Home({ searchParams }: Props) {
           <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Upgrade spend</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.upgradesTotalCents)}</p>
+          </article>
+        </section>
+
+        <section className="grid gap-3 lg:grid-cols-3">
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Bills paid this cycle</p>
+            <p className="font-data mt-1 text-2xl font-semibold">{dashboard.paidRatePct}%</p>
+            <p className="mt-1 text-xs text-[color:var(--app-muted)]">
+              {dashboard.paidCount} of {dashboard.bills.length} recurring bills marked paid.
+            </p>
+          </article>
+          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 lg:col-span-2">
+            <p className="text-sm text-[color:var(--app-muted)]">Top monthly cost categories</p>
+            {dashboard.categoryTotals.length === 0 ? (
+              <p className="mt-2 text-sm text-[color:var(--app-muted)]">Add bills to unlock category analytics.</p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {dashboard.categoryTotals.map((entry) => (
+                  <li key={entry.category} className="flex items-center justify-between rounded-md border border-[color:var(--app-border)] px-3 py-2">
+                    <span className="text-sm capitalize">{entry.category}</span>
+                    <span className="font-data text-sm font-semibold">{formatCurrency(entry.totalCents)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </article>
         </section>
 

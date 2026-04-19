@@ -32,6 +32,11 @@ export type DashboardData = {
   dueSoonCount: number;
   unpaidCount: number;
   paidCount: number;
+  paidRatePct: number;
+  categoryTotals: {
+    category: string;
+    totalCents: number;
+  }[];
   upgrades: {
     id: string;
     title: string;
@@ -110,6 +115,17 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
   const upgradesTotalCents = upgrades.reduce((sum, upgrade) => sum + upgrade.costCents, 0);
   const totalMonthlyCostCents =
     mappedBills.reduce((sum, bill) => sum + bill.amountCents, 0) + upgradesTotalCents;
+  const categoryMap = new Map<string, number>();
+  for (const bill of mappedBills) {
+    const key = bill.category.toLowerCase();
+    categoryMap.set(key, (categoryMap.get(key) ?? 0) + bill.amountCents);
+  }
+  const categoryTotals = [...categoryMap.entries()]
+    .map(([category, totalCents]) => ({ category, totalCents }))
+    .sort((a, b) => b.totalCents - a.totalCents)
+    .slice(0, 5);
+  const paidCount = mappedBills.filter((bill) => bill.status === "paid_this_month").length;
+  const paidRatePct = mappedBills.length === 0 ? 0 : Math.round((paidCount / mappedBills.length) * 100);
 
   return {
     monthKey,
@@ -122,7 +138,9 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
     overdueCount: mappedBills.filter((bill) => bill.status === "overdue").length,
     dueSoonCount: mappedBills.filter((bill) => bill.status === "due_soon").length,
     unpaidCount: mappedBills.filter((bill) => bill.status === "unpaid_this_month").length,
-    paidCount: mappedBills.filter((bill) => bill.status === "paid_this_month").length,
+    paidCount,
+    paidRatePct,
+    categoryTotals,
     upgrades,
   };
 }

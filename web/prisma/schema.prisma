@@ -12,6 +12,17 @@ datasource db {
   provider = "postgresql"
 }
 
+enum ScenarioStatus {
+  draft
+  applied
+}
+
+enum ScenarioItemType {
+  recurring
+  financed
+  one_time
+}
+
 model User {
   id           String   @id @default(cuid())
   username     String   @unique
@@ -54,4 +65,41 @@ model Upgrade {
   updatedAt  DateTime @updatedAt
 
   @@index([loggedAt, category])
+}
+
+model Scenario {
+  id                      String         @id @default(cuid())
+  name                    String
+  notes                   String?
+  status                  ScenarioStatus @default(draft)
+  version                 Int            @default(1)
+  monthlyTotalCents       Int            @default(0)
+  yearlyTotalCents        Int            @default(0)
+  financedMonthlyCents    Int            @default(0)
+  recurringMonthlyCents   Int            @default(0)
+  oneTimeCents            Int            @default(0)
+  appliedAt               DateTime?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  items                   ScenarioItem[]
+
+  @@index([status, updatedAt])
+}
+
+model ScenarioItem {
+  id               String           @id @default(cuid())
+  scenarioId       String
+  label            String
+  category         String
+  itemType         ScenarioItemType
+  amountCents      Int
+  recurrenceRule   String?
+  termMonths       Int?
+  annualRateBps    Int?
+  sourceKind       String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  scenario         Scenario         @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+
+  @@index([scenarioId, itemType])
 }
