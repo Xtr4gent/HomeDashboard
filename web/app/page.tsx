@@ -91,18 +91,18 @@ export default async function Home({ searchParams }: Props) {
           </div>
 
           <nav className="mt-5 space-y-1 text-sm">
-            <span className="block rounded-xl bg-blue-600 px-3 py-2 font-semibold text-white">Overview</span>
+            <span className="block rounded-xl bg-blue-600 px-3 py-2 font-semibold text-white">Dashboard</span>
             <Link href="/planner" className="block rounded-xl px-3 py-2 text-slate-600 transition hover:bg-white hover:text-slate-900">
-              Planner Lab
-            </Link>
-            <Link href="/budget" className="block rounded-xl px-3 py-2 text-slate-600 transition hover:bg-white hover:text-slate-900">
-              Budget
+              Our Home
             </Link>
             <Link href="/projections" className="block rounded-xl px-3 py-2 text-slate-600 transition hover:bg-white hover:text-slate-900">
               Projections
             </Link>
             <Link href="/upgrades" className="block rounded-xl px-3 py-2 text-slate-600 transition hover:bg-white hover:text-slate-900">
               Upgrades
+            </Link>
+            <Link href="/budget" className="block rounded-xl px-3 py-2 text-slate-600 transition hover:bg-white hover:text-slate-900">
+              Budget
             </Link>
           </nav>
 

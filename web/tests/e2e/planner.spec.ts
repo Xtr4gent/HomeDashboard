@@ -4,33 +4,28 @@ const e2eUsername = process.env.E2E_AUTH_USERNAME;
 const e2ePassword = process.env.E2E_AUTH_PASSWORD;
 const canRunAuthenticatedE2E = Boolean(e2eUsername && e2ePassword);
 
-test.describe("planner lab", () => {
-  test("renders planner entry points", async ({ page }) => {
+test.describe("our home", () => {
+  test("renders Our Home entry point", async ({ page }) => {
     await page.goto("/planner");
-    const plannerHeading = page.getByRole("heading", { name: "Planner Lab" });
+    const plannerHeading = page.getByRole("heading", { name: "Home Financial Snapshot" });
     const loginHeading = page.getByRole("heading", { name: "HomeDashboard Login" });
     await expect(plannerHeading.or(loginHeading)).toBeVisible();
   });
 
-  test("shows planner save/apply controls when authenticated", async ({ page }) => {
+  test("shows Our Home save controls when authenticated", async ({ page }) => {
     await page.goto("/planner");
 
-    const plannerHeading = page.getByRole("heading", { name: "Planner Lab" });
+    const plannerHeading = page.getByRole("heading", { name: "Home Financial Snapshot" });
     if (await plannerHeading.isVisible()) {
-      await expect(page.getByRole("button", { name: "Save draft scenario" })).toBeVisible();
-      const applyButtons = page.getByText("Apply to dashboard");
-      if ((await applyButtons.count()) > 0) {
-        await expect(applyButtons.first()).toBeVisible();
-      } else {
-        await expect(page.getByText("No scenarios yet. Save one to start comparing options.")).toBeVisible();
-      }
+      await expect(page.getByRole("button", { name: "Save Our Home snapshot" })).toBeVisible();
+      await expect(page.getByText(/Monthly property tax equivalent/i)).toBeVisible();
       return;
     }
 
     await expect(page.getByRole("heading", { name: "HomeDashboard Login" })).toBeVisible();
   });
 
-  test("authenticated user can save + apply scenario and see dashboard bill count increase", async ({ page }) => {
+  test("authenticated user can save Our Home snapshot", async ({ page }) => {
     test.skip(!canRunAuthenticatedE2E, "Set E2E_AUTH_USERNAME and E2E_AUTH_PASSWORD to run.");
 
     await page.goto("/login");
@@ -38,41 +33,15 @@ test.describe("planner lab", () => {
     await page.getByPlaceholder("Password").fill(e2ePassword!);
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    await page.goto("/");
-    await expect(page.getByRole("heading", { name: "House Ops Command Center" })).toBeVisible();
-    const recurringCard = page
-      .locator("div")
-      .filter({ has: page.getByRole("heading", { name: "Recurring Bills" }) })
-      .first();
-    const beforeCount = await recurringCard.getByRole("button", { name: /Mark paid|Paid/ }).count();
-
     await page.goto("/planner");
-    await expect(page.getByRole("heading", { name: "Planner Lab" })).toBeVisible();
-
-    const uniqueName = `E2E Planner ${Date.now()}`;
-    await page.getByLabel("Scenario name").fill(uniqueName);
-    await page.getByLabel("Other monthly").fill("937.41");
-    await page.getByRole("button", { name: "Save draft scenario" }).click();
-
-    await expect(page.getByText("Planner action completed successfully.")).toBeVisible();
-
-    const scenarioCard = page.locator("li").filter({ hasText: uniqueName }).first();
-    await expect(scenarioCard).toBeVisible();
-    await scenarioCard.getByRole("button", { name: "Apply to dashboard" }).click();
-    await expect(page.getByText("Planner action completed successfully.")).toBeVisible();
-
-    const appliedCard = page.locator("li").filter({ hasText: uniqueName }).first();
-    await expect(appliedCard.getByRole("button", { name: "Edit as new draft" })).toBeVisible();
-    await appliedCard.getByRole("button", { name: "Edit as new draft" }).click();
-    await expect(page.getByText("Planner action completed successfully.")).toBeVisible();
-    await expect(page.getByLabel("Scenario name")).toHaveValue(`${uniqueName} (copy)`);
-
-    const compareSection = page.getByRole("heading", { name: "Scenario comparison" });
-    await expect(compareSection).toBeVisible();
-
-    await page.goto("/");
-    await expect(page.getByRole("heading", { name: "House Ops Command Center" })).toBeVisible();
-    const afterCount = await recurringCard.getByRole("button", { name: /Mark paid|Paid/ }).count();
-    expect(afterCount).toBeGreaterThan(beforeCount);
+    await expect(page.getByRole("heading", { name: "Home Financial Snapshot" })).toBeVisible();
+    await page.getByLabel("Property address").fill("456 Maple Ave, Ottawa, ON");
+    await page.getByLabel("Mortgage payment (semi-monthly)").fill("1320.45");
+    await page.getByLabel("Property tax (yearly total)").fill("7200.00");
+    await page.getByLabel("Water (monthly)").fill("54.25");
+    await page.getByLabel("Gas (monthly)").fill("73.10");
+    await page.getByLabel("Hydro (monthly)").fill("121.80");
+    await page.getByRole("button", { name: "Save Our Home snapshot" }).click();
+    await expect(page.getByText("Our Home snapshot saved successfully.")).toBeVisible();
   });
 });

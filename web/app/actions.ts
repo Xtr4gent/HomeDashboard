@@ -14,6 +14,8 @@ import { cleanBudgetDataWithAi } from "@/lib/budget-ai";
 import { buildScenarioProjectionItems } from "@/lib/planner-builder";
 import { getDashboardData } from "@/lib/dashboard";
 import { toCents } from "@/lib/money";
+import { mapInputToSnapshotUpsert } from "@/lib/our-home";
+import { saveHomeProfileSnapshotSchema } from "@/lib/our-home-schema";
 import {
   aggregateScenarioTotals,
   projectFinancedItem,
@@ -99,7 +101,6 @@ const saveBudgetTargetSchema = z.object({
 const cleanBudgetDataWithAiSchema = z.object({
   monthKey: z.string().min(1),
 });
-
 export async function loginAction(formData: FormData): Promise<void> {
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
@@ -143,6 +144,7 @@ async function logActivity(args: {
     | "upgrade_project_deleted"
     | "scenario_saved"
     | "scenario_applied"
+    | "home_profile_saved"
     | "month_closed"
     | "month_reopened"
     | "budget_imported"
@@ -608,6 +610,52 @@ export async function deleteUpgradeProjectAction(formData: FormData): Promise<vo
   });
 
   revalidatePath("/upgrades");
+}
+
+export async function saveHomeProfileSnapshotAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const parsed = saveHomeProfileSnapshotSchema.safeParse({
+    monthKey: String(formData.get("monthKey") ?? ""),
+    propertyAddress: String(formData.get("propertyAddress") ?? ""),
+    semiMonthlyPayment: String(formData.get("semiMonthlyPayment") ?? ""),
+    mortgageInterestRatePct: String(formData.get("mortgageInterestRatePct") ?? ""),
+    mortgageTermYears: String(formData.get("mortgageTermYears") ?? ""),
+    mortgageTermStartMonthKey: String(formData.get("mortgageTermStartMonthKey") ?? ""),
+    mortgageLender: String(formData.get("mortgageLender") ?? ""),
+    mortgageNotes: String(formData.get("mortgageNotes") ?? ""),
+    propertyTaxYearly: String(formData.get("propertyTaxYearly") ?? ""),
+    waterMonthly: String(formData.get("waterMonthly") ?? ""),
+    gasMonthly: String(formData.get("gasMonthly") ?? ""),
+    hydroMonthly: String(formData.get("hydroMonthly") ?? ""),
+  });
+
+  if (!parsed.success) {
+    redirect("/planner?error=invalid_home_profile_input");
+  }
+
+  const payload = mapInputToSnapshotUpsert(parsed.data);
+  await prisma.homeProfileSnapshot.upsert({
+    where: { monthKey: payload.monthKey },
+    create: payload,
+    update: payload,
+  });
+
+  await logActivity({
+    action: "home_profile_saved",
+    actorUsername: session.username,
+    entityType: "home_profile_snapshot",
+    monthKey: payload.monthKey,
+    summary: `Saved home profile snapshot for ${payload.monthKey}`,
+    metadata: {
+      mortgageTermYears: payload.mortgageTermYears,
+      mortgageInterestRatePct: payload.mortgageInterestRatePct,
+      hasLender: Boolean(payload.mortgageLender),
+    },
+  });
+
+  revalidatePath("/planner");
+  revalidatePath("/");
+  redirect(`/planner?month=${encodeURIComponent(payload.monthKey)}&success=home_profile_saved`);
 }
 
 export async function cloneScenarioToDraftAction(formData: FormData): Promise<void> {

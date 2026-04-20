@@ -50,19 +50,19 @@ export function AppShell({ title, username, activeNav, children }: Props) {
 
           <nav className="mt-5 space-y-1 text-sm">
             <Link href="/" className={navClass(activeNav === "dashboard")}>
-              Overview
+              Dashboard
             </Link>
             <Link href="/planner" className={navClass(activeNav === "planner")}>
-              Planner Lab
-            </Link>
-            <Link href="/budget" className={navClass(activeNav === "budget")}>
-              Budget
+              Our Home
             </Link>
             <Link href="/projections" className={navClass(activeNav === "projections")}>
               Projections
             </Link>
             <Link href="/upgrades" className={navClass(activeNav === "upgrades")}>
               Upgrades
+            </Link>
+            <Link href="/budget" className={navClass(activeNav === "budget")}>
+              Budget
             </Link>
           </nav>
 

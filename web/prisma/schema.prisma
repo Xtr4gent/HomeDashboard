@@ -52,6 +52,7 @@ enum ActivityAction {
   upgrade_project_deleted
   scenario_saved
   scenario_applied
+  home_profile_saved
   month_closed
   month_reopened
   budget_imported
@@ -146,6 +147,27 @@ model ScenarioItem {
   scenario         Scenario         @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
 
   @@index([scenarioId, itemType])
+}
+
+model HomeProfileSnapshot {
+  id                         String   @id @default(cuid())
+  monthKey                   String   @unique
+  propertyAddress            String
+  semiMonthlyPaymentCents    Int
+  mortgageInterestRatePct    Decimal  @db.Decimal(5, 3)
+  mortgageTermYears          Int      @default(5)
+  mortgageTermStartMonthKey  String
+  mortgageTermEndMonthKey    String
+  mortgageLender             String?
+  mortgageNotes              String?
+  propertyTaxYearlyCents     Int
+  waterMonthlyCents          Int
+  gasMonthlyCents            Int
+  hydroMonthlyCents          Int
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([monthKey, updatedAt])
 }
 
 model AnalyticsSnapshotDaily {

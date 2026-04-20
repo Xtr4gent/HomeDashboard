@@ -117,15 +117,14 @@ export default async function BudgetPage({ searchParams }: Props) {
               href="/"
               className="block rounded-xl px-3 py-2 font-semibold text-slate-300 transition hover:bg-slate-800/60 hover:text-white"
             >
-              Overview
+              Dashboard
             </Link>
             <Link
               href="/planner"
               className="block rounded-xl px-3 py-2 font-semibold text-slate-300 transition hover:bg-slate-800/60 hover:text-white"
             >
-              Planner Lab
+              Our Home
             </Link>
-            <span className="block rounded-xl bg-slate-100 px-3 py-2 font-semibold text-slate-900">Budget</span>
             <Link
               href="/projections"
               className="block rounded-xl px-3 py-2 font-semibold text-slate-300 transition hover:bg-slate-800/60 hover:text-white"
@@ -138,6 +137,7 @@ export default async function BudgetPage({ searchParams }: Props) {
             >
               Upgrades
             </Link>
+            <span className="block rounded-xl bg-slate-100 px-3 py-2 font-semibold text-slate-900">Budget</span>
           </nav>
         </aside>
 

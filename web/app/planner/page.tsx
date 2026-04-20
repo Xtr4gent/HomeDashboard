@@ -1,159 +1,24 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { applyScenarioAction, cloneScenarioToDraftAction, saveScenarioAction } from "@/app/actions";
+import { saveHomeProfileSnapshotAction } from "@/app/actions";
 import { AppShell } from "@/app/components/app-shell";
 import { getSession } from "@/lib/auth/session";
 import { formatCurrency } from "@/lib/money";
-import { buildScenarioCompareDelta } from "@/lib/planner-builder";
-import { prisma } from "@/lib/prisma";
-import { type RecurrenceMode, parseRecurrenceRule } from "@/lib/time";
+import {
+  deriveMortgageTermEndMonthKey,
+  getHomeProfileSnapshotView,
+} from "@/lib/our-home";
+import { resolveProjectionMonthKey } from "@/lib/projections";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-type PlannerFormDefaults = {
-  scenarioId?: string;
-  expectedVersion?: number;
-  name: string;
-  notes: string;
-  mortgagePrincipal: string;
-  mortgageRateAnnualPct: string;
-  mortgageTermMonths: string;
-  propertyTaxMonthly: string;
-  insuranceMonthly: string;
-  utilitiesMonthly: string;
-  otherMonthly: string;
-  upgradeOneTimeCost: string;
-  upgradeSpreadMonths: string;
-  upgradeRateAnnualPct: string;
-  recurrenceMode: RecurrenceMode;
-  dueDay: string;
-  secondDueDay: string;
-  dueMonth: string;
-};
-
-type ScenarioDraft = {
-  id: string;
-  version: number;
-  name: string;
-  notes: string | null;
-  status: "draft" | "applied";
-  monthlyTotalCents: number;
-  yearlyTotalCents: number;
-  recurringMonthlyCents: number;
-  financedMonthlyCents: number;
-  oneTimeCents: number;
-  items: {
-    label: string;
-    category: string;
-    amountCents: number;
-    annualRateBps: number | null;
-    termMonths: number | null;
-    recurrenceRule: string | null;
-  }[];
-};
-
-function splitScenarioTotals(scenario: ScenarioDraft): { housingCents: number; upgradesCents: number } {
-  let housingCents = 0;
-  let upgradesCents = 0;
-
-  for (const item of scenario.items) {
-    const category = item.category.toLowerCase();
-    if (category === "upgrade" || category === "financed-upgrade") {
-      upgradesCents += item.amountCents;
-      continue;
-    }
-    housingCents += item.amountCents;
+function parseMonthParam(rawMonth: string | string[] | undefined): string | undefined {
+  if (typeof rawMonth === "string") {
+    return rawMonth;
   }
-
-  return { housingCents, upgradesCents };
-}
-
-function asAmount(cents: number): string {
-  return (cents / 100).toFixed(2);
-}
-
-function defaultsFromScenario(scenario: ScenarioDraft | null): PlannerFormDefaults {
-  if (!scenario) {
-    return {
-      name: "New House Plan",
-      notes: "",
-      mortgagePrincipal: "350000",
-      mortgageRateAnnualPct: "5.20",
-      mortgageTermMonths: "300",
-      propertyTaxMonthly: "350",
-      insuranceMonthly: "120",
-      utilitiesMonthly: "250",
-      otherMonthly: "150",
-      upgradeOneTimeCost: "0",
-      upgradeSpreadMonths: "60",
-      upgradeRateAnnualPct: "6.50",
-      recurrenceMode: "monthly_day",
-      dueDay: "15",
-      secondDueDay: "28",
-      dueMonth: "1",
-    };
-  }
-
-  const mortgage = scenario.items.find((item) => item.label === "Mortgage");
-  const upgrade = scenario.items.find((item) => item.label === "Upgrade Financing");
-  const tax = scenario.items.find((item) => item.label === "Property Tax");
-  const insurance = scenario.items.find((item) => item.label === "Insurance");
-  const utilities = scenario.items.find((item) => item.label === "Utilities");
-  const other = scenario.items.find((item) => item.label === "Other Monthly");
-  const recurrenceSource = scenario.items.find((item) => item.recurrenceRule) ?? null;
-  let recurrenceMode: RecurrenceMode = "monthly_day";
-  let dueDay = "15";
-  let secondDueDay = "28";
-  let dueMonth = "1";
-
-  if (recurrenceSource?.recurrenceRule) {
-    try {
-      const parsedRecurrence = parseRecurrenceRule(recurrenceSource.recurrenceRule);
-      if (parsedRecurrence.kind === "monthly_last_day") {
-        recurrenceMode = "monthly_last_day";
-      }
-      if (parsedRecurrence.kind === "monthly_day") {
-        recurrenceMode = "monthly_day";
-        dueDay = String(parsedRecurrence.day);
-      }
-      if (parsedRecurrence.kind === "semi_monthly") {
-        recurrenceMode = "semi_monthly";
-        dueDay = String(parsedRecurrence.firstDay);
-        secondDueDay = String(parsedRecurrence.secondDay);
-      }
-      if (parsedRecurrence.kind === "yearly") {
-        recurrenceMode = "yearly";
-        dueDay = String(parsedRecurrence.day);
-        dueMonth = String(parsedRecurrence.month);
-      }
-    } catch {
-      // Keep defaults when older/invalid recurrence values are encountered.
-    }
-  }
-
-  return {
-    scenarioId: scenario.id,
-    expectedVersion: scenario.version,
-    name: scenario.name,
-    notes: scenario.notes ?? "",
-    mortgagePrincipal: mortgage ? asAmount(mortgage.amountCents) : "350000",
-    mortgageRateAnnualPct: mortgage?.annualRateBps ? (mortgage.annualRateBps / 100).toFixed(2) : "5.20",
-    mortgageTermMonths: String(mortgage?.termMonths ?? 300),
-    propertyTaxMonthly: tax ? asAmount(tax.amountCents) : "350",
-    insuranceMonthly: insurance ? asAmount(insurance.amountCents) : "120",
-    utilitiesMonthly: utilities ? asAmount(utilities.amountCents) : "250",
-    otherMonthly: other ? asAmount(other.amountCents) : "150",
-    upgradeOneTimeCost: upgrade ? asAmount(upgrade.amountCents) : "0",
-    upgradeSpreadMonths: String(upgrade?.termMonths ?? 60),
-    upgradeRateAnnualPct: upgrade?.annualRateBps ? (upgrade.annualRateBps / 100).toFixed(2) : "6.50",
-    recurrenceMode,
-    dueDay,
-    secondDueDay,
-    dueMonth,
-  };
+  return undefined;
 }
 
 export default async function PlannerPage({ searchParams }: Props) {
@@ -163,283 +28,175 @@ export default async function PlannerPage({ searchParams }: Props) {
   }
 
   const params = await searchParams;
-  const selectedScenarioId = typeof params.scenarioId === "string" ? params.scenarioId : undefined;
-  const compareIds =
-    typeof params.compare === "string"
-      ? params.compare
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean)
-      : [];
-
-  const scenarios: ScenarioDraft[] = await prisma.scenario.findMany({
-    where: { status: { in: ["draft", "applied"] } },
-    include: { items: true },
-    orderBy: { updatedAt: "desc" },
-    take: 10,
-  });
-
-  const draftScenarios = scenarios.filter((scenario) => scenario.status === "draft");
-  const selectedScenario = selectedScenarioId
-    ? draftScenarios.find((scenario) => scenario.id === selectedScenarioId) ?? null
-    : draftScenarios[0] ?? null;
-
-  const compareScenarios = draftScenarios.filter((scenario) => compareIds.includes(scenario.id));
-  const defaults = defaultsFromScenario(selectedScenario);
+  const monthKey = resolveProjectionMonthKey(parseMonthParam(params.month));
+  const snapshot = await getHomeProfileSnapshotView(monthKey);
+  const successCode = typeof params.success === "string" ? params.success : undefined;
+  const hasError = typeof params.error === "string";
 
   return (
-    <AppShell title="Planner Lab" username={session.username} activeNav="planner">
+    <AppShell title="Our Home" username={session.username} activeNav="planner">
       <main className="flex w-full min-w-0 flex-col gap-6">
-        {params.error ? (
+        {hasError ? (
           <div className="rounded-md border border-[color:var(--app-error)]/25 bg-[color:var(--app-error)]/10 px-4 py-3 text-sm text-[color:var(--app-error)]">
-            Planner action failed. Check values and try again.
+            Could not save Our Home details. Check your entries and try again.
           </div>
         ) : null}
-        {params.success ? (
+        {successCode === "home_profile_saved" ? (
           <div className="rounded-md border border-[color:var(--app-success)]/25 bg-[color:var(--app-success)]/10 px-4 py-3 text-sm text-[color:var(--app-success)]">
-            Planner action completed successfully.
+            Our Home snapshot saved successfully.
           </div>
         ) : null}
 
-        <section className="grid gap-6 lg:grid-cols-3">
+        <section className="rounded-2xl border border-[color:var(--app-border)] bg-white px-4 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--app-muted)]">Our Home</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">Home Financial Snapshot</h1>
+          <p className="mt-2 text-sm text-[color:var(--app-muted)]">
+            Store the core details for your home by month, mortgage, taxes, and utilities all in one place.
+          </p>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Monthly mortgage</p>
+            <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(snapshot.monthlyMortgagePaymentCents)}</p>
+          </article>
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Monthly property tax</p>
+            <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(snapshot.monthlyPropertyTaxCents)}</p>
+          </article>
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Monthly utilities</p>
+            <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(snapshot.monthlyUtilitiesTotalCents)}</p>
+          </article>
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
+            <p className="text-sm text-[color:var(--app-muted)]">Housing core total</p>
+            <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(snapshot.monthlyHousingCoreCents)}</p>
+          </article>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
           <form
-            action={saveScenarioAction}
-            className="space-y-4 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 lg:col-span-2 sm:p-6"
+            id="our-home-form"
+            action={saveHomeProfileSnapshotAction}
+            className="space-y-4 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6"
           >
-            <h2 className="text-lg font-semibold">Scenario Builder</h2>
-            <input type="hidden" name="scenarioId" value={defaults.scenarioId ?? ""} />
-            <input type="hidden" name="expectedVersion" value={defaults.expectedVersion ?? ""} />
-            <div className="space-y-4">
-              <section className="grid gap-3 sm:grid-cols-2">
-                <p className="sm:col-span-2 text-sm font-semibold text-[color:var(--app-muted)]">Housing costs and financing</p>
+            <h2 className="text-lg font-semibold">Our Home Details</h2>
+            <section className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1 text-sm">
-                Scenario name
+                Snapshot month
                 <input
-                  name="name"
-                  defaultValue={defaults.name}
+                  type="month"
+                  name="monthKey"
+                  defaultValue={snapshot.values.monthKey}
                   className="rounded border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
                 />
               </label>
               <label className="grid gap-1 text-sm">
-                Notes
+                Property address
                 <input
-                  name="notes"
-                  defaultValue={defaults.notes}
+                  name="propertyAddress"
+                  defaultValue={snapshot.values.propertyAddress}
                   className="rounded border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
                 />
               </label>
               <label className="grid gap-1 text-sm">
-                Mortgage principal
-                <input name="mortgagePrincipal" defaultValue={defaults.mortgagePrincipal} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
+                Mortgage payment (semi-monthly)
+                <input name="semiMonthlyPayment" defaultValue={snapshot.values.semiMonthlyPayment} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
               </label>
               <label className="grid gap-1 text-sm">
                 Mortgage annual rate %
-                <input name="mortgageRateAnnualPct" defaultValue={defaults.mortgageRateAnnualPct} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
+                <input name="mortgageInterestRatePct" defaultValue={snapshot.values.mortgageInterestRatePct} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
               </label>
               <label className="grid gap-1 text-sm">
-                Mortgage term (months)
-                <input name="mortgageTermMonths" defaultValue={defaults.mortgageTermMonths} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
+                Current term (years)
+                <input name="mortgageTermYears" defaultValue={snapshot.values.mortgageTermYears} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
               </label>
               <label className="grid gap-1 text-sm">
-                Property tax monthly
-                <input name="propertyTaxMonthly" defaultValue={defaults.propertyTaxMonthly} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
-              </label>
-              <label className="grid gap-1 text-sm">
-                Insurance monthly
-                <input name="insuranceMonthly" defaultValue={defaults.insuranceMonthly} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
-              </label>
-              <label className="grid gap-1 text-sm">
-                Utilities monthly
-                <input name="utilitiesMonthly" defaultValue={defaults.utilitiesMonthly} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
-              </label>
-              <label className="grid gap-1 text-sm">
-                Other monthly
-                <input name="otherMonthly" defaultValue={defaults.otherMonthly} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
-              </label>
-              <label className="grid gap-1 text-sm">
-                Recurrence mode
-                <select
-                  name="recurrenceMode"
-                  defaultValue={defaults.recurrenceMode}
+                Term start month
+                <input
+                  type="month"
+                  name="mortgageTermStartMonthKey"
+                  defaultValue={snapshot.values.mortgageTermStartMonthKey}
                   className="rounded border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
-                >
-                  <option value="monthly_day">Monthly on fixed day</option>
-                  <option value="monthly_last_day">Monthly on last day</option>
-                  <option value="semi_monthly">Semi-monthly on two days</option>
-                  <option value="yearly">Yearly (month + day)</option>
-                </select>
-              </label>
-              <label className="grid gap-1 text-sm">
-                Due day
-                <input
-                  name="dueDay"
-                  type="number"
-                  min={1}
-                  max={31}
-                  defaultValue={defaults.dueDay}
-                  className="font-data rounded border border-[color:var(--app-border)] px-3 py-2"
                 />
               </label>
               <label className="grid gap-1 text-sm">
-                Second due day (semi-monthly)
+                Term end month (auto)
                 <input
-                  name="secondDueDay"
-                  type="number"
-                  min={1}
-                  max={31}
-                  defaultValue={defaults.secondDueDay}
-                  className="font-data rounded border border-[color:var(--app-border)] px-3 py-2"
+                  value={deriveMortgageTermEndMonthKey(snapshot.values.mortgageTermStartMonthKey, Number(snapshot.values.mortgageTermYears))}
+                  readOnly
+                  className="rounded border border-[color:var(--app-border)] bg-slate-100 px-3 py-2 text-slate-600"
                 />
               </label>
               <label className="grid gap-1 text-sm">
-                Due month (yearly)
-                <input
-                  name="dueMonth"
-                  type="number"
-                  min={1}
-                  max={12}
-                  defaultValue={defaults.dueMonth}
-                  className="font-data rounded border border-[color:var(--app-border)] px-3 py-2"
+                Lender (optional)
+                <input name="mortgageLender" defaultValue={snapshot.values.mortgageLender} className="rounded border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2" />
+              </label>
+              <label className="grid gap-1 text-sm sm:col-span-2">
+                Mortgage notes (optional)
+                <textarea
+                  name="mortgageNotes"
+                  defaultValue={snapshot.values.mortgageNotes}
+                  rows={3}
+                  className="rounded border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2"
                 />
               </label>
-              </section>
-
-              <section className="grid gap-3 sm:grid-cols-2">
-                <p className="sm:col-span-2 text-sm font-semibold text-[color:var(--app-muted)]">Upgrades planning</p>
-              <label className="grid gap-1 text-sm">
-                Upgrade one-time cost
-                <input name="upgradeOneTimeCost" defaultValue={defaults.upgradeOneTimeCost} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
-              </label>
-              <label className="grid gap-1 text-sm">
-                Upgrade spread months
-                <input name="upgradeSpreadMonths" defaultValue={defaults.upgradeSpreadMonths} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
-              </label>
-              <label className="grid gap-1 text-sm">
-                Upgrade annual rate %
-                <input name="upgradeRateAnnualPct" defaultValue={defaults.upgradeRateAnnualPct} className="font-data rounded border border-[color:var(--app-border)] px-3 py-2" />
-              </label>
-              </section>
-            </div>
+            </section>
             <button
               type="submit"
               className="rounded bg-[color:var(--app-accent)] px-4 py-2 text-sm font-semibold text-white"
             >
-              Save draft scenario
+              Save Our Home snapshot
             </button>
           </form>
 
           <aside className="space-y-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
-            <h3 className="text-base font-semibold">Drafts to Compare</h3>
-            {scenarios.length === 0 ? (
-              <p className="text-sm text-[color:var(--app-muted)]">No scenarios yet. Save one to start comparing options.</p>
-            ) : (
-              <ul className="space-y-3">
-                {scenarios.map((scenario) => (
-                  <li key={scenario.id} className="rounded-md border border-[color:var(--app-border)] p-3">
-                    <p className="font-medium">{scenario.name}</p>
-                    <p className="font-data text-xs text-[color:var(--app-muted)]">
-                      Monthly {formatCurrency(scenario.monthlyTotalCents)} · Yearly {formatCurrency(scenario.yearlyTotalCents)}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {scenario.status === "draft" ? (
-                        <Link
-                          href={`/planner?scenarioId=${scenario.id}`}
-                          className="rounded border border-[color:var(--app-border)] px-2 py-1 text-xs font-semibold text-[color:var(--app-muted)]"
-                        >
-                          Edit
-                        </Link>
-                      ) : (
-                        <form action={cloneScenarioToDraftAction}>
-                          <input type="hidden" name="scenarioId" value={scenario.id} />
-                          <button
-                            type="submit"
-                            className="rounded border border-[color:var(--app-border)] px-2 py-1 text-xs font-semibold text-[color:var(--app-muted)]"
-                          >
-                            Edit as new draft
-                          </button>
-                        </form>
-                      )}
-                      <Link
-                        href={`/planner?compare=${encodeURIComponent([scenario.id, ...compareIds].slice(0, 5).join(","))}`}
-                        className="rounded border border-[color:var(--app-border)] px-2 py-1 text-xs font-semibold text-[color:var(--app-muted)]"
-                      >
-                        Compare
-                      </Link>
-                      {scenario.status === "draft" ? (
-                        <form action={applyScenarioAction}>
-                          <input type="hidden" name="scenarioId" value={scenario.id} />
-                          <input type="hidden" name="expectedVersion" value={scenario.version} />
-                          <button
-                            type="submit"
-                            className="rounded bg-[color:var(--app-success)] px-2 py-1 text-xs font-semibold text-white"
-                          >
-                            Apply to dashboard
-                          </button>
-                        </form>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </aside>
-        </section>
-
-        <section className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
-          <h3 className="text-base font-semibold">Scenario comparison</h3>
-          {compareScenarios.length === 0 ? (
-            <p className="mt-2 text-sm text-[color:var(--app-muted)]">
-              Add scenarios to compare. You can compare up to 5 drafts at once.
-            </p>
-          ) : (
-            <div className="mt-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {compareScenarios.map((scenario) => (
-                <article key={scenario.id} className="rounded-md border border-[color:var(--app-border)] p-3">
-                  {(() => {
-                    const split = splitScenarioTotals(scenario);
-                    const baseline = compareScenarios[0];
-                    const deltas = buildScenarioCompareDelta(
-                      {
-                        monthlyTotalCents: baseline.monthlyTotalCents,
-                        yearlyTotalCents: baseline.yearlyTotalCents,
-                        oneTimeCents: baseline.oneTimeCents,
-                      },
-                      {
-                        monthlyTotalCents: scenario.monthlyTotalCents,
-                        yearlyTotalCents: scenario.yearlyTotalCents,
-                        oneTimeCents: scenario.oneTimeCents,
-                      },
-                    );
-                    return (
-                      <>
-                  <p className="font-medium">{scenario.name}</p>
-                  <p className="font-data mt-1 text-sm">
-                    Monthly {formatCurrency(scenario.monthlyTotalCents)}
-                  </p>
-                  <p className="font-data text-sm">Yearly {formatCurrency(scenario.yearlyTotalCents)}</p>
-                  <p className="font-data text-xs text-[color:var(--app-muted)]">
-                    Recurring {formatCurrency(scenario.recurringMonthlyCents)} · Financed{" "}
-                    {formatCurrency(scenario.financedMonthlyCents)}
-                  </p>
-                  <p className="font-data text-xs text-[color:var(--app-muted)]">
-                    Housing {formatCurrency(split.housingCents)} · Upgrades {formatCurrency(split.upgradesCents)}
-                  </p>
-                  <div className="mt-2 rounded-md bg-[color:var(--app-bg)] px-2 py-2">
-                    <p className="text-xs font-semibold text-[color:var(--app-muted)]">Compare 2.0 vs baseline</p>
-                    <p className="font-data text-xs">Monthly delta {formatCurrency(deltas.monthlyDeltaCents)}</p>
-                    <p className="font-data text-xs">Yearly delta {formatCurrency(deltas.yearlyDeltaCents)}</p>
-                    <p className="font-data text-xs">3-year delta {formatCurrency(deltas.threeYearDeltaCents)}</p>
-                    <p className="text-xs text-[color:var(--app-muted)]">
-                      Break-even: {deltas.breakEvenMonths ? `${deltas.breakEvenMonths} months` : "N/A"}
-                    </p>
-                  </div>
-                      </>
-                    );
-                  })()}
-                </article>
-              ))}
+            <h3 className="text-base font-semibold">Property taxes and utilities</h3>
+            <div className="grid gap-3">
+              <label className="grid gap-1 text-sm">
+                Property tax (yearly total)
+                <input
+                  form="our-home-form"
+                  name="propertyTaxYearly"
+                  defaultValue={snapshot.values.propertyTaxYearly}
+                  className="font-data rounded border border-[color:var(--app-border)] bg-white px-3 py-2"
+                />
+              </label>
+              <p className="text-sm text-[color:var(--app-muted)]">
+                Monthly property tax equivalent:{" "}
+                <span className="font-data font-semibold text-slate-900">{formatCurrency(snapshot.monthlyPropertyTaxCents)}</span>
+              </p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <label className="grid gap-1 text-sm">
+                  Water (monthly)
+                  <input
+                    form="our-home-form"
+                    name="waterMonthly"
+                    defaultValue={snapshot.values.waterMonthly}
+                    className="font-data rounded border border-[color:var(--app-border)] px-3 py-2"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  Gas (monthly)
+                  <input
+                    form="our-home-form"
+                    name="gasMonthly"
+                    defaultValue={snapshot.values.gasMonthly}
+                    className="font-data rounded border border-[color:var(--app-border)] px-3 py-2"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  Hydro (monthly)
+                  <input
+                    form="our-home-form"
+                    name="hydroMonthly"
+                    defaultValue={snapshot.values.hydroMonthly}
+                    className="font-data rounded border border-[color:var(--app-border)] px-3 py-2"
+                  />
+                </label>
+              </div>
             </div>
-          )}
+          </aside>
         </section>
       </main>
     </AppShell>
