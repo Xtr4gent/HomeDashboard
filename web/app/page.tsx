@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import type { CSSProperties } from "react";
 
 import {
   addBillAction,
@@ -61,27 +60,11 @@ export default async function Home({ searchParams }: Props) {
     getAnalyticsTrendData(),
   ]);
 
-  const dashboardTheme = {
-    "--app-bg": "#eef2f8",
-    "--app-surface": "#f8fafc",
-    "--app-foreground": "#0f172a",
-    "--app-muted": "#64748b",
-    "--app-accent": "#2563eb",
-    "--app-border": "#dbe2ee",
-    "--app-success": "#15803d",
-    "--app-warning": "#c2410c",
-    "--app-error": "#b91c1c",
-    "--app-info": "#1d4ed8",
-  } as CSSProperties;
-
   return (
     <div className="min-h-screen bg-[var(--app-shell-bg)] text-[color:var(--app-foreground)] transition-colors">
-      <div
-        style={dashboardTheme}
-        className="grid min-h-screen w-full overflow-hidden border border-slate-200 bg-[color:var(--app-surface)] shadow-[0_40px_100px_rgba(2,6,23,0.45)] lg:grid-cols-[260px_1fr] 2xl:grid-cols-[290px_1fr]"
-      >
-        <aside className="flex flex-col border-r border-[color:var(--app-border)] bg-white/70 p-4">
-          <div className="flex items-center gap-3 rounded-2xl border border-[color:var(--app-border)] bg-white px-3 py-3">
+      <div className="grid min-h-screen w-full overflow-hidden border border-[color:var(--app-border)] bg-[color:var(--app-surface)] shadow-[0_40px_100px_rgba(2,6,23,0.45)] lg:grid-cols-[260px_1fr] 2xl:grid-cols-[290px_1fr]">
+        <aside className="flex flex-col border-r border-[color:var(--app-border)] bg-[color:var(--app-panel-soft)] p-4">
+          <div className="flex items-center gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-panel)] px-3 py-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
               HD
             </div>
@@ -107,7 +90,7 @@ export default async function Home({ searchParams }: Props) {
             </Link>
           </nav>
 
-          <div className="mt-auto rounded-2xl border border-[color:var(--app-border)] bg-white p-3">
+          <div className="mt-auto rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-panel)] p-3">
             <p className="text-xs text-[color:var(--app-muted)]">Signed in as</p>
             <p className="mb-3 text-sm font-semibold text-slate-900">{session.username}</p>
             <form action={logoutAction}>
@@ -131,10 +114,10 @@ export default async function Home({ searchParams }: Props) {
                 <input
                   id="dashboardSearch"
                   placeholder="Search dashboard..."
-                  className="w-full rounded-full border border-[color:var(--app-border)] bg-white px-4 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-300"
+                  className="w-full rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-panel)] px-4 py-2 text-sm text-[color:var(--app-foreground)] shadow-sm outline-none transition focus:border-blue-300"
                 />
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-[color:var(--app-border)] bg-white p-1 text-xs font-semibold text-slate-500">
+              <div className="flex items-center gap-2 rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-panel)] p-1 text-xs font-semibold text-[color:var(--app-muted)]">
                 <span className="rounded-full bg-slate-900 px-3 py-1 text-white">Today</span>
                 <span className="rounded-full px-3 py-1">Week</span>
                 <span className="rounded-full px-3 py-1">Month</span>

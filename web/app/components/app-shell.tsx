@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { ThemeToggle } from "@/app/components/theme-toggle";
 
 type ActiveNav = "dashboard" | "planner" | "budget" | "projections" | "upgrades";
@@ -11,19 +11,6 @@ type Props = {
   children: ReactNode;
 };
 
-const shellTheme = {
-  "--app-bg": "#eef2f8",
-  "--app-surface": "#f8fafc",
-  "--app-foreground": "#0f172a",
-  "--app-muted": "#64748b",
-  "--app-accent": "#2563eb",
-  "--app-border": "#dbe2ee",
-  "--app-success": "#15803d",
-  "--app-warning": "#c2410c",
-  "--app-error": "#b91c1c",
-  "--app-info": "#1d4ed8",
-} as CSSProperties;
-
 function navClass(isActive: boolean): string {
   if (isActive) {
     return "block rounded-xl bg-blue-600 px-3 py-2 font-semibold text-white";
@@ -34,10 +21,7 @@ function navClass(isActive: boolean): string {
 export function AppShell({ title, username, activeNav, children }: Props) {
   return (
     <div className="min-h-screen bg-[var(--app-shell-bg)] text-[color:var(--app-foreground)] transition-colors">
-      <div
-        style={shellTheme}
-        className="grid min-h-screen w-full overflow-hidden border border-[color:var(--app-border)] bg-[color:var(--app-surface)] shadow-[0_40px_100px_rgba(2,6,23,0.45)] lg:grid-cols-[260px_1fr] 2xl:grid-cols-[290px_1fr]"
-      >
+      <div className="grid min-h-screen w-full overflow-hidden border border-[color:var(--app-border)] bg-[color:var(--app-surface)] shadow-[0_40px_100px_rgba(2,6,23,0.45)] lg:grid-cols-[260px_1fr] 2xl:grid-cols-[290px_1fr]">
         <aside className="flex flex-col border-r border-[color:var(--app-border)] bg-[color:var(--app-panel-soft)] p-4">
           <div className="flex items-center gap-3 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-panel)] px-3 py-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
