@@ -9,6 +9,7 @@ const getSessionMock = vi.fn();
 const budgetTargetUpsertMock = vi.fn();
 const activityLogCreateMock = vi.fn();
 const importBudgetCsvMock = vi.fn();
+const cleanBudgetDataWithAiMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
@@ -38,6 +39,10 @@ vi.mock("@/lib/budget", () => ({
   importBudgetCsv: importBudgetCsvMock,
 }));
 
+vi.mock("@/lib/budget-ai", () => ({
+  cleanBudgetDataWithAi: cleanBudgetDataWithAiMock,
+}));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     budgetMonthlyTarget: {
@@ -59,6 +64,16 @@ describe("budget actions", () => {
       importedCount: 2,
       duplicateCount: 1,
       rowCount: 3,
+    });
+    cleanBudgetDataWithAiMock.mockResolvedValue({
+      scannedRows: 12,
+      updatedRows: 4,
+      skippedRows: 8,
+      acceptedSuggestions: 5,
+      confidenceThreshold: 0.78,
+      promptTokens: 450,
+      completionTokens: 210,
+      estimatedCostCents: 2,
     });
   });
 
@@ -95,6 +110,29 @@ describe("budget actions", () => {
 
     await expect(importBudgetCsvAction(formData)).rejects.toThrow(
       "REDIRECT:/budget?month=2026-04&tab=accounts&error=missing_csv_file",
+    );
+  });
+
+  test("cleanBudgetDataWithAiAction redirects with success metadata", async () => {
+    const { cleanBudgetDataWithAiAction } = await import("@/app/actions");
+    const formData = new FormData();
+    formData.set("monthKey", "2026-04");
+
+    await expect(cleanBudgetDataWithAiAction(formData)).rejects.toThrow(
+      "REDIRECT:/budget?month=2026-04&tab=accounts&success=ai_cleanup&updated=4&costCents=2",
+    );
+    expect(cleanBudgetDataWithAiMock).toHaveBeenCalledWith({ monthKey: "2026-04" });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/budget");
+  });
+
+  test("cleanBudgetDataWithAiAction maps budget-cap errors to query string", async () => {
+    const { cleanBudgetDataWithAiAction } = await import("@/app/actions");
+    cleanBudgetDataWithAiMock.mockRejectedValueOnce(new Error("openai_monthly_budget_reached"));
+    const formData = new FormData();
+    formData.set("monthKey", "2026-04");
+
+    await expect(cleanBudgetDataWithAiAction(formData)).rejects.toThrow(
+      "REDIRECT:/budget?month=2026-04&tab=accounts&error=openai_monthly_budget_reached",
     );
   });
 });

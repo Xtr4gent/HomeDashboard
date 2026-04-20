@@ -4,6 +4,11 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   APP_TIMEZONE: z.string().min(1).default("UTC"),
   SESSION_SECRET: z.string().min(16),
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  OPENAI_MODEL: z.string().min(1).default("gpt-4.1-mini"),
+  OPENAI_BUDGET_CENTS_MONTHLY: z.coerce.number().int().positive().default(500),
+  OPENAI_MAX_ROWS_PER_RUN: z.coerce.number().int().positive().default(40),
+  OPENAI_MAX_RUNS_PER_DAY: z.coerce.number().int().positive().default(3),
 });
 
 const isProductionBuildPhase =
@@ -13,6 +18,10 @@ const buildTimeFallbacks = {
   DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/home_dashboard?schema=public",
   APP_TIMEZONE: "UTC",
   SESSION_SECRET: "build-only-session-secret-placeholder",
+  OPENAI_MODEL: "gpt-4.1-mini",
+  OPENAI_BUDGET_CENTS_MONTHLY: "500",
+  OPENAI_MAX_ROWS_PER_RUN: "40",
+  OPENAI_MAX_RUNS_PER_DAY: "3",
 } as const;
 
 const rawEnv = isProductionBuildPhase

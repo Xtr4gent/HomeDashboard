@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { importBudgetCsvAction, logoutAction, saveBudgetTargetAction } from "@/app/actions";
+import { cleanBudgetDataWithAiAction, importBudgetCsvAction, logoutAction, saveBudgetTargetAction } from "@/app/actions";
+import { AiCleanupButton } from "@/app/budget/ai-cleanup-button";
 import { getSession } from "@/lib/auth/session";
+import { getBudgetAiPreflight } from "@/lib/budget-ai";
 import { getBudgetPageData } from "@/lib/budget";
 import { formatCurrency } from "@/lib/money";
 import { resolveProjectionMonthKey } from "@/lib/projections";
@@ -27,6 +29,13 @@ function parseTabParam(rawTab: string | string[] | undefined): BudgetTab {
     return rawTab as BudgetTab;
   }
   return "overview";
+}
+
+function parseStringParam(raw: string | string[] | undefined): string | undefined {
+  if (typeof raw === "string") {
+    return raw;
+  }
+  return undefined;
 }
 
 function formatSigned(cents: number): string {
@@ -66,8 +75,12 @@ export default async function BudgetPage({ searchParams }: Props) {
   const params = await searchParams;
   const monthKey = resolveProjectionMonthKey(parseMonthParam(params.month));
   const tab = parseTabParam(params.tab);
-  const budgetData = await getBudgetPageData(monthKey);
-  const hasError = typeof params.error === "string";
+  const [budgetData, aiPreflight] = await Promise.all([getBudgetPageData(monthKey), getBudgetAiPreflight(monthKey)]);
+  const errorCode = parseStringParam(params.error);
+  const successCode = parseStringParam(params.success);
+  const updatedCount = Number(parseStringParam(params.updated) ?? "0");
+  const costCents = Number(parseStringParam(params.costCents) ?? "0");
+  const hasError = Boolean(errorCode);
   const totalFlow = budgetData.overview.incomeCents + budgetData.overview.expensesCents;
   const incomePct = totalFlow > 0 ? Math.round((budgetData.overview.incomeCents / totalFlow) * 100) : 0;
   const expensePct = totalFlow > 0 ? Math.round((budgetData.overview.expensesCents / totalFlow) * 100) : 0;
@@ -127,7 +140,19 @@ export default async function BudgetPage({ searchParams }: Props) {
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6">
         {hasError ? (
           <div className="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
-            Budget action failed. Review your CSV or input and retry.
+            {errorCode === "openai_api_key_missing"
+              ? "OpenAI key is missing. Set OPENAI_API_KEY before running AI cleanup."
+              : errorCode === "openai_daily_limit_reached"
+                ? "AI cleanup daily limit reached. Try again tomorrow."
+                : errorCode === "openai_monthly_budget_reached"
+                  ? "AI cleanup is blocked because your monthly AI budget cap was reached."
+                  : "Budget action failed. Review your CSV or input and retry."}
+          </div>
+        ) : null}
+        {successCode === "ai_cleanup" ? (
+          <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+            AI cleanup completed. Updated {Number.isFinite(updatedCount) ? updatedCount : 0} transactions. Estimated cost{" "}
+            {formatCurrency(Number.isFinite(costCents) ? costCents : 0)}.
           </div>
         ) : null}
 
@@ -341,6 +366,9 @@ export default async function BudgetPage({ searchParams }: Props) {
                   Import transactions
                 </button>
               </form>
+              <div className="mt-3">
+                <AiCleanupButton monthKey={monthKey} preflight={aiPreflight} action={cleanBudgetDataWithAiAction} />
+              </div>
             </article>
             <article className="rounded-2xl border border-slate-700/70 bg-slate-900/75 p-4 sm:p-6">
               <h2 className="text-lg font-semibold text-slate-100">Accounts and import history</h2>

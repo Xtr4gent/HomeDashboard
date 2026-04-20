@@ -10,6 +10,7 @@ import { enqueueAnalyticsRecompute, processQueuedAnalyticsJobs } from "@/lib/ana
 import { clearSession, createSession, getSession } from "@/lib/auth/session";
 import { getClock } from "@/lib/clock";
 import { importBudgetCsv } from "@/lib/budget";
+import { cleanBudgetDataWithAi } from "@/lib/budget-ai";
 import { buildScenarioProjectionItems } from "@/lib/planner-builder";
 import { getDashboardData } from "@/lib/dashboard";
 import { toCents } from "@/lib/money";
@@ -93,6 +94,10 @@ const saveBudgetTargetSchema = z.object({
   monthKey: z.string().min(1),
   category: z.string().min(1),
   targetAmount: z.string().min(1),
+});
+
+const cleanBudgetDataWithAiSchema = z.object({
+  monthKey: z.string().min(1),
 });
 
 export async function loginAction(formData: FormData): Promise<void> {
@@ -1114,4 +1119,45 @@ export async function saveBudgetTargetAction(formData: FormData): Promise<void> 
     summary: `Saved budget target for ${category}`,
   });
   revalidatePath("/budget");
+}
+
+export async function cleanBudgetDataWithAiAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const parsed = cleanBudgetDataWithAiSchema.safeParse({
+    monthKey: String(formData.get("monthKey") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/budget?tab=accounts&error=invalid_budget_ai_cleanup");
+  }
+
+  const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
+  let result: Awaited<ReturnType<typeof cleanBudgetDataWithAi>>;
+  try {
+    result = await cleanBudgetDataWithAi({ monthKey });
+    await logActivity({
+      action: "budget_transaction_updated",
+      actorUsername: session.username,
+      entityType: "budget_transaction",
+      monthKey,
+      summary: `AI cleanup updated ${result.updatedRows} rows`,
+      metadata: {
+        source: "ai_cleanup",
+        scannedRows: result.scannedRows,
+        updatedRows: result.updatedRows,
+        skippedRows: result.skippedRows,
+        acceptedSuggestions: result.acceptedSuggestions,
+        confidenceThreshold: result.confidenceThreshold,
+        promptTokens: result.promptTokens,
+        completionTokens: result.completionTokens,
+        estimatedCostCents: result.estimatedCostCents,
+      },
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "budget_ai_cleanup_failed";
+    redirect(`/budget?month=${encodeURIComponent(monthKey)}&tab=accounts&error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath("/budget");
+  redirect(
+    `/budget?month=${encodeURIComponent(monthKey)}&tab=accounts&success=ai_cleanup&updated=${result.updatedRows}&costCents=${result.estimatedCostCents}`,
+  );
 }
