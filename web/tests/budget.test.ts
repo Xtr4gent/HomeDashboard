@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   buildBudgetFingerprint,
   normalizeMerchantName,
+  parseBudgetAmount,
   parseCsv,
   summarizeBudgetTransactions,
 } from "@/lib/budget";
@@ -27,6 +28,14 @@ describe("budget helpers", () => {
       amountCents: -10235,
     });
     expect(fingerprint).toBe("2026-04-10:grocery store:10235");
+  });
+
+  test("parses flexible amount formats safely", () => {
+    expect(parseBudgetAmount("($54.25)")).toBe(-5425);
+    expect(parseBudgetAmount("54.25-")).toBe(-5425);
+    expect(parseBudgetAmount("54.25DR")).toBe(-5425);
+    expect(parseBudgetAmount("54.25CR")).toBe(5425);
+    expect(parseBudgetAmount("not-a-number")).toBe(0);
   });
 
   test("summarizes inflow/outflow and uncategorized count", () => {

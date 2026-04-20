@@ -82,6 +82,7 @@ export default async function BudgetPage({ searchParams }: Props) {
   const updatedCount = Number(parseStringParam(params.updated) ?? "0");
   const costCents = Number(parseStringParam(params.costCents) ?? "0");
   const hasError = Boolean(errorCode);
+  const readableError = errorCode ? errorCode.replaceAll("_", " ") : "";
   const totalFlow = budgetData.overview.incomeCents + budgetData.overview.expensesCents;
   const incomePct = totalFlow > 0 ? Math.round((budgetData.overview.incomeCents / totalFlow) * 100) : 0;
   const expensePct = totalFlow > 0 ? Math.round((budgetData.overview.expensesCents / totalFlow) * 100) : 0;
@@ -154,6 +155,8 @@ export default async function BudgetPage({ searchParams }: Props) {
                   ? "AI cleanup daily limit reached. Try again tomorrow."
                   : errorCode === "openai_monthly_budget_reached"
                     ? "AI cleanup is blocked because your monthly AI budget cap was reached."
+                  : readableError
+                    ? `Budget action failed: ${readableError}.`
                     : "Budget action failed. Review your CSV or input and retry."}
             </div>
           ) : null}

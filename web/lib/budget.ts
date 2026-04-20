@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { toCents } from "@/lib/money";
 import { monthKeyFromDate } from "@/lib/time";
 
 export type ParsedCsvData = {
@@ -68,12 +67,43 @@ export function parseCsv(content: string): ParsedCsvData {
   return { headers, rows };
 }
 
-function parseAmount(raw: string): number {
-  const normalized = raw.replace(/[$,]/g, "").trim();
+export function parseBudgetAmount(raw: string): number {
+  const normalized = raw.replace(/[$,\s]/g, "").toLowerCase();
   if (!normalized) {
     return 0;
   }
-  return toCents(Number(normalized), { allowZero: true });
+
+  let working = normalized;
+  let sign = 1;
+
+  if (working.includes("(") && working.includes(")")) {
+    sign = -1;
+  }
+  working = working.replace(/[()]/g, "");
+
+  if (working.endsWith("-")) {
+    sign = -1;
+    working = working.slice(0, -1);
+  }
+  if (working.startsWith("-")) {
+    sign = -1;
+    working = working.slice(1);
+  }
+
+  if (working.endsWith("dr")) {
+    sign = -1;
+    working = working.slice(0, -2);
+  } else if (working.endsWith("cr")) {
+    sign = 1;
+    working = working.slice(0, -2);
+  }
+
+  const parsed = Number(working);
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.round(parsed * 100) * sign;
 }
 
 export function normalizeMerchantName(raw: string): string {
@@ -185,10 +215,10 @@ export async function importBudgetCsv(args: {
     }
     let amountCents = 0;
     if (amountIndex >= 0) {
-      amountCents = parseAmount(row[amountIndex] ?? "");
+      amountCents = parseBudgetAmount(row[amountIndex] ?? "");
     } else {
-      const debitCents = debitIndex >= 0 ? parseAmount(row[debitIndex] ?? "") : 0;
-      const creditCents = creditIndex >= 0 ? parseAmount(row[creditIndex] ?? "") : 0;
+      const debitCents = debitIndex >= 0 ? parseBudgetAmount(row[debitIndex] ?? "") : 0;
+      const creditCents = creditIndex >= 0 ? parseBudgetAmount(row[creditIndex] ?? "") : 0;
       amountCents = creditCents - debitCents;
     }
     if (amountCents === 0) {
