@@ -1,0 +1,397 @@
+{
+  "url": "http://localhost:3002",
+  "timestamp": "2026-04-20T00:17:57.479Z",
+  "mode": "production",
+  "pages": {
+    "/": {
+      "ttfb_ms": 11,
+      "fcp_ms": 156,
+      "lcp_ms": null,
+      "dom_interactive_ms": 157,
+      "dom_complete_ms": 157,
+      "full_load_ms": 157,
+      "total_requests": 12,
+      "total_transfer_bytes": 0,
+      "js_bundle_bytes": 0,
+      "css_bundle_bytes": 0,
+      "request_breakdown": {
+        "link": 6,
+        "script": 6
+      },
+      "largest_resources": [
+        {
+          "name": "03bda585a99c6450-s.p.0zzh68k1~whtc.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "23b7a97ae3b5c134-s.p.0o14nraug8u5s.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "99e609270109b47d-s.p.16-z~2sp29ex6.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "f06bf9da926bae75-s.p.0pz0x0eczp58u.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "05_qn3qal92ts.css",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "13xv-lba1n61h.js",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "0dgq26a5_oy.a.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "0n~dq4kpx9xxx.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "1359b7-2-~~r1.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "turbopack-0o7_g49kw6598.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        }
+      ]
+    },
+    "/budget": {
+      "ttfb_ms": 7,
+      "fcp_ms": 48,
+      "lcp_ms": null,
+      "dom_interactive_ms": 32,
+      "dom_complete_ms": 33,
+      "full_load_ms": 33,
+      "total_requests": 12,
+      "total_transfer_bytes": 0,
+      "js_bundle_bytes": 0,
+      "css_bundle_bytes": 0,
+      "request_breakdown": {
+        "link": 6,
+        "script": 6
+      },
+      "largest_resources": [
+        {
+          "name": "03bda585a99c6450-s.p.0zzh68k1~whtc.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "23b7a97ae3b5c134-s.p.0o14nraug8u5s.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "99e609270109b47d-s.p.16-z~2sp29ex6.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "f06bf9da926bae75-s.p.0pz0x0eczp58u.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "05_qn3qal92ts.css",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "13xv-lba1n61h.js",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "0dgq26a5_oy.a.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "0n~dq4kpx9xxx.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "1359b7-2-~~r1.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "turbopack-0o7_g49kw6598.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        }
+      ]
+    },
+    "/planner": {
+      "ttfb_ms": 13,
+      "fcp_ms": 56,
+      "lcp_ms": null,
+      "dom_interactive_ms": 50,
+      "dom_complete_ms": 50,
+      "full_load_ms": 50,
+      "total_requests": 12,
+      "total_transfer_bytes": 0,
+      "js_bundle_bytes": 0,
+      "css_bundle_bytes": 0,
+      "request_breakdown": {
+        "link": 6,
+        "script": 6
+      },
+      "largest_resources": [
+        {
+          "name": "03bda585a99c6450-s.p.0zzh68k1~whtc.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "23b7a97ae3b5c134-s.p.0o14nraug8u5s.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "99e609270109b47d-s.p.16-z~2sp29ex6.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "f06bf9da926bae75-s.p.0pz0x0eczp58u.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "05_qn3qal92ts.css",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "13xv-lba1n61h.js",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "0dgq26a5_oy.a.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "0n~dq4kpx9xxx.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "1359b7-2-~~r1.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "turbopack-0o7_g49kw6598.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        }
+      ]
+    },
+    "/projections": {
+      "ttfb_ms": 5,
+      "fcp_ms": 32,
+      "lcp_ms": null,
+      "dom_interactive_ms": 32,
+      "dom_complete_ms": 32,
+      "full_load_ms": 32,
+      "total_requests": 12,
+      "total_transfer_bytes": 0,
+      "js_bundle_bytes": 0,
+      "css_bundle_bytes": 0,
+      "request_breakdown": {
+        "link": 6,
+        "script": 6
+      },
+      "largest_resources": [
+        {
+          "name": "03bda585a99c6450-s.p.0zzh68k1~whtc.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "23b7a97ae3b5c134-s.p.0o14nraug8u5s.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "99e609270109b47d-s.p.16-z~2sp29ex6.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "f06bf9da926bae75-s.p.0pz0x0eczp58u.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "05_qn3qal92ts.css",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "13xv-lba1n61h.js",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "0dgq26a5_oy.a.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "0n~dq4kpx9xxx.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "1359b7-2-~~r1.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "turbopack-0o7_g49kw6598.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        }
+      ]
+    },
+    "/upgrades": {
+      "ttfb_ms": 8,
+      "fcp_ms": 40,
+      "lcp_ms": null,
+      "dom_interactive_ms": 35,
+      "dom_complete_ms": 35,
+      "full_load_ms": 35,
+      "total_requests": 12,
+      "total_transfer_bytes": 0,
+      "js_bundle_bytes": 0,
+      "css_bundle_bytes": 0,
+      "request_breakdown": {
+        "link": 6,
+        "script": 6
+      },
+      "largest_resources": [
+        {
+          "name": "03bda585a99c6450-s.p.0zzh68k1~whtc.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "23b7a97ae3b5c134-s.p.0o14nraug8u5s.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "99e609270109b47d-s.p.16-z~2sp29ex6.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "f06bf9da926bae75-s.p.0pz0x0eczp58u.woff2",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "05_qn3qal92ts.css",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "13xv-lba1n61h.js",
+          "type": "link",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "0dgq26a5_oy.a.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "0n~dq4kpx9xxx.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "1359b7-2-~~r1.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        },
+        {
+          "name": "turbopack-0o7_g49kw6598.js",
+          "type": "script",
+          "size": 0,
+          "duration": 0
+        }
+      ]
+    }
+  }
+}

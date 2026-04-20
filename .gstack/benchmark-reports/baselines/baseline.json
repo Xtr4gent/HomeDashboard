@@ -1,0 +1,547 @@
+{
+  "url": "http://localhost:3001",
+  "timestamp": "2026-04-20T00:04:28.421Z",
+  "branch": "main",
+  "pages": {
+    "/": {
+      "ttfb_ms": 316,
+      "fcp_ms": 420,
+      "lcp_ms": null,
+      "dom_interactive_ms": 524,
+      "dom_complete_ms": 532,
+      "full_load_ms": 532,
+      "total_requests": 20,
+      "total_transfer_bytes": 4800,
+      "js_bundle_bytes": 4200,
+      "css_bundle_bytes": 0,
+      "largest_resources": [
+        {
+          "name": "node_modules_next_dist_client_components_builtin_global-error_0dp-m8t.js",
+          "type": "script",
+          "size": 300,
+          "duration": 102
+        },
+        {
+          "name": "node_modules_next_dist_0tt2wve._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 100
+        },
+        {
+          "name": "app_layout_tsx_004glpo._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 100
+        },
+        {
+          "name": "_0rqeker._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 99
+        },
+        {
+          "name": "turbopack-_0p44nws._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 99
+        },
+        {
+          "name": "node_modules_%40swc_helpers_cjs_0-4ujiy._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 60
+        },
+        {
+          "name": "node_modules_next_dist_client_0fhqo1d._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 56
+        },
+        {
+          "name": "node_modules_next_dist_115brz8._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 56
+        },
+        {
+          "name": "node_modules_next_dist_compiled_0rpq4pf._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 55
+        },
+        {
+          "name": "node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 51
+        },
+        {
+          "name": "node_modules_next_dist_compiled_next-devtools_index_0553esy.js",
+          "type": "script",
+          "size": 300,
+          "duration": 16
+        },
+        {
+          "name": "node_modules_next_dist_compiled_react-dom_058-ah~._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 16
+        },
+        {
+          "name": "%5Broot-of-the-server%5D__0~4b-j-._.css",
+          "type": "link",
+          "size": 300,
+          "duration": 15
+        },
+        {
+          "name": "%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_10z625~._.js",
+          "type": "link",
+          "size": 300,
+          "duration": 15
+        },
+        {
+          "name": "%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0yjw1oe._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 9
+        }
+      ],
+      "request_breakdown": {
+        "link": 6,
+        "script": 14
+      }
+    },
+    "/budget": {
+      "ttfb_ms": 40,
+      "fcp_ms": 116,
+      "lcp_ms": null,
+      "dom_interactive_ms": 115,
+      "dom_complete_ms": 135,
+      "full_load_ms": 135,
+      "total_requests": 20,
+      "total_transfer_bytes": 4800,
+      "js_bundle_bytes": 4200,
+      "css_bundle_bytes": 0,
+      "largest_resources": [
+        {
+          "name": "app_layout_tsx_004glpo._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 22
+        },
+        {
+          "name": "node_modules_next_dist_client_components_builtin_global-error_0dp-m8t.js",
+          "type": "script",
+          "size": 300,
+          "duration": 22
+        },
+        {
+          "name": "node_modules_%40swc_helpers_cjs_0-4ujiy._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 21
+        },
+        {
+          "name": "turbopack-_0p44nws._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 21
+        },
+        {
+          "name": "node_modules_next_dist_0tt2wve._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 21
+        },
+        {
+          "name": "_0rqeker._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 17
+        },
+        {
+          "name": "node_modules_next_dist_client_0fhqo1d._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 15
+        },
+        {
+          "name": "node_modules_next_dist_115brz8._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 15
+        },
+        {
+          "name": "node_modules_next_dist_compiled_0rpq4pf._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 13
+        },
+        {
+          "name": "%5Broot-of-the-server%5D__0~4b-j-._.css",
+          "type": "link",
+          "size": 300,
+          "duration": 9
+        },
+        {
+          "name": "node_modules_next_dist_compiled_next-devtools_index_0553esy.js",
+          "type": "script",
+          "size": 300,
+          "duration": 9
+        },
+        {
+          "name": "node_modules_next_dist_compiled_react-dom_058-ah~._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 9
+        },
+        {
+          "name": "node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 9
+        },
+        {
+          "name": "%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_10z625~._.js",
+          "type": "link",
+          "size": 300,
+          "duration": 8
+        },
+        {
+          "name": "%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_10mygs7._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 3
+        }
+      ],
+      "request_breakdown": {
+        "link": 6,
+        "script": 14
+      }
+    },
+    "/planner": {
+      "ttfb_ms": 38,
+      "fcp_ms": 104,
+      "lcp_ms": null,
+      "dom_interactive_ms": 86,
+      "dom_complete_ms": 122,
+      "full_load_ms": 122,
+      "total_requests": 20,
+      "total_transfer_bytes": 4800,
+      "js_bundle_bytes": 4200,
+      "css_bundle_bytes": 0,
+      "largest_resources": [
+        {
+          "name": "node_modules_%40swc_helpers_cjs_0-4ujiy._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 17
+        },
+        {
+          "name": "node_modules_next_dist_client_components_builtin_global-error_0dp-m8t.js",
+          "type": "script",
+          "size": 300,
+          "duration": 17
+        },
+        {
+          "name": "turbopack-_0p44nws._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 16
+        },
+        {
+          "name": "node_modules_next_dist_0tt2wve._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 16
+        },
+        {
+          "name": "app_layout_tsx_004glpo._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 16
+        },
+        {
+          "name": "_0rqeker._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 15
+        },
+        {
+          "name": "node_modules_next_dist_115brz8._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 10
+        },
+        {
+          "name": "node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 9
+        },
+        {
+          "name": "node_modules_next_dist_compiled_0rpq4pf._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 9
+        },
+        {
+          "name": "node_modules_next_dist_client_0fhqo1d._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 9
+        },
+        {
+          "name": "node_modules_next_dist_compiled_next-devtools_index_0553esy.js",
+          "type": "script",
+          "size": 300,
+          "duration": 8
+        },
+        {
+          "name": "node_modules_next_dist_compiled_react-dom_058-ah~._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 8
+        },
+        {
+          "name": "%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0yjw1oe._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 5
+        },
+        {
+          "name": "%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_10mygs7._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 5
+        },
+        {
+          "name": "%5Broot-of-the-server%5D__0~4b-j-._.css",
+          "type": "link",
+          "size": 300,
+          "duration": 3
+        }
+      ],
+      "request_breakdown": {
+        "link": 6,
+        "script": 14
+      }
+    },
+    "/projections": {
+      "ttfb_ms": 31,
+      "fcp_ms": 112,
+      "lcp_ms": null,
+      "dom_interactive_ms": 85,
+      "dom_complete_ms": 112,
+      "full_load_ms": 112,
+      "total_requests": 20,
+      "total_transfer_bytes": 4800,
+      "js_bundle_bytes": 4200,
+      "css_bundle_bytes": 0,
+      "largest_resources": [
+        {
+          "name": "node_modules_%40swc_helpers_cjs_0-4ujiy._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 14
+        },
+        {
+          "name": "turbopack-_0p44nws._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 14
+        },
+        {
+          "name": "node_modules_next_dist_0tt2wve._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 14
+        },
+        {
+          "name": "app_layout_tsx_004glpo._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 14
+        },
+        {
+          "name": "node_modules_next_dist_client_components_builtin_global-error_0dp-m8t.js",
+          "type": "script",
+          "size": 300,
+          "duration": 14
+        },
+        {
+          "name": "_0rqeker._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 13
+        },
+        {
+          "name": "node_modules_next_dist_compiled_next-devtools_index_0553esy.js",
+          "type": "script",
+          "size": 300,
+          "duration": 8
+        },
+        {
+          "name": "node_modules_next_dist_compiled_react-dom_058-ah~._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 8
+        },
+        {
+          "name": "node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 8
+        },
+        {
+          "name": "node_modules_next_dist_compiled_0rpq4pf._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 8
+        },
+        {
+          "name": "node_modules_next_dist_client_0fhqo1d._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 8
+        },
+        {
+          "name": "node_modules_next_dist_115brz8._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 8
+        },
+        {
+          "name": "%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0yjw1oe._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 5
+        },
+        {
+          "name": "%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_10mygs7._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 5
+        },
+        {
+          "name": "%5Broot-of-the-server%5D__0~4b-j-._.css",
+          "type": "link",
+          "size": 300,
+          "duration": 3
+        }
+      ],
+      "request_breakdown": {
+        "link": 6,
+        "script": 14
+      }
+    },
+    "/upgrades": {
+      "ttfb_ms": 37,
+      "fcp_ms": 104,
+      "lcp_ms": null,
+      "dom_interactive_ms": 114,
+      "dom_complete_ms": 133,
+      "full_load_ms": 133,
+      "total_requests": 20,
+      "total_transfer_bytes": 4800,
+      "js_bundle_bytes": 4200,
+      "css_bundle_bytes": 0,
+      "largest_resources": [
+        {
+          "name": "app_layout_tsx_004glpo._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 23
+        },
+        {
+          "name": "node_modules_next_dist_client_components_builtin_global-error_0dp-m8t.js",
+          "type": "script",
+          "size": 300,
+          "duration": 23
+        },
+        {
+          "name": "node_modules_%40swc_helpers_cjs_0-4ujiy._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 20
+        },
+        {
+          "name": "_0rqeker._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 20
+        },
+        {
+          "name": "turbopack-_0p44nws._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 20
+        },
+        {
+          "name": "node_modules_next_dist_0tt2wve._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 20
+        },
+        {
+          "name": "node_modules_next_dist_115brz8._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 19
+        },
+        {
+          "name": "node_modules_next_dist_client_0fhqo1d._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 13
+        },
+        {
+          "name": "node_modules_next_dist_compiled_0rpq4pf._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 12
+        },
+        {
+          "name": "node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 11
+        },
+        {
+          "name": "node_modules_next_dist_compiled_next-devtools_index_0553esy.js",
+          "type": "script",
+          "size": 300,
+          "duration": 10
+        },
+        {
+          "name": "node_modules_next_dist_compiled_react-dom_058-ah~._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 10
+        },
+        {
+          "name": "%5Broot-of-the-server%5D__0~4b-j-._.css",
+          "type": "link",
+          "size": 300,
+          "duration": 5
+        },
+        {
+          "name": "%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_10z625~._.js",
+          "type": "link",
+          "size": 300,
+          "duration": 5
+        },
+        {
+          "name": "%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0yjw1oe._.js",
+          "type": "script",
+          "size": 300,
+          "duration": 5
+        }
+      ],
+      "request_breakdown": {
+        "link": 6,
+        "script": 14
+      }
+    }
+  }
+}
