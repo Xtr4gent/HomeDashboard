@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 
 import {
   addBillAction,
@@ -59,62 +60,104 @@ export default async function Home({ searchParams }: Props) {
     getAnalyticsTrendData(),
   ]);
 
+  const dashboardTheme = {
+    "--app-bg": "#eef2f8",
+    "--app-surface": "#f8fafc",
+    "--app-foreground": "#0f172a",
+    "--app-muted": "#64748b",
+    "--app-accent": "#2563eb",
+    "--app-border": "#dbe2ee",
+    "--app-success": "#15803d",
+    "--app-warning": "#c2410c",
+    "--app-error": "#b91c1c",
+    "--app-info": "#1d4ed8",
+  } as CSSProperties;
+
   return (
-    <div className="min-h-screen text-[color:var(--app-foreground)]">
-      <header className="border-b border-[color:var(--app-border)] bg-[color:var(--app-surface)]/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <div>
-            <p className="text-sm text-[color:var(--app-muted)]">HomeDashboard</p>
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">House Ops Command Center</h1>
-            <div className="mt-3 flex items-center gap-2">
-              <span className="rounded-md bg-[color:var(--app-accent)] px-3 py-1 text-xs font-semibold text-white">
-                Dashboard
-              </span>
-              <Link
-                href="/planner"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Planner Lab
-              </Link>
-              <Link
-                href="/budget"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Budget
-              </Link>
-              <Link
-                href="/projections"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Projections
-              </Link>
-              <Link
-                href="/upgrades"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Upgrades
-              </Link>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#192246_0%,#0f1737_45%,#090d1f_100%)] px-4 py-6 text-[color:var(--app-foreground)] sm:px-6">
+      <div
+        style={dashboardTheme}
+        className="mx-auto grid w-full max-w-[1450px] overflow-hidden rounded-[30px] border border-slate-200 bg-[color:var(--app-surface)] shadow-[0_40px_100px_rgba(2,6,23,0.45)] lg:grid-cols-[240px_1fr]"
+      >
+        <aside className="flex flex-col border-r border-[color:var(--app-border)] bg-white/70 p-4">
+          <div className="flex items-center gap-3 rounded-2xl border border-[color:var(--app-border)] bg-white px-3 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
+              HD
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">HomeDashboard</p>
+              <p className="text-xs text-[color:var(--app-muted)]">Charts version</p>
             </div>
           </div>
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="rounded-md border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm hover:bg-[color:var(--app-bg)]"
-            >
-              Logout {session.username}
-            </button>
-          </form>
-        </div>
-      </header>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
+          <nav className="mt-5 space-y-1 text-sm">
+            <span className="block rounded-xl bg-blue-600 px-3 py-2 font-semibold text-white">Overview</span>
+            <Link href="/planner" className="block rounded-xl px-3 py-2 text-slate-600 transition hover:bg-white hover:text-slate-900">
+              Planner Lab
+            </Link>
+            <Link href="/budget" className="block rounded-xl px-3 py-2 text-slate-600 transition hover:bg-white hover:text-slate-900">
+              Budget
+            </Link>
+            <Link href="/projections" className="block rounded-xl px-3 py-2 text-slate-600 transition hover:bg-white hover:text-slate-900">
+              Projections
+            </Link>
+            <Link href="/upgrades" className="block rounded-xl px-3 py-2 text-slate-600 transition hover:bg-white hover:text-slate-900">
+              Upgrades
+            </Link>
+          </nav>
+
+          <div className="mt-auto rounded-2xl border border-[color:var(--app-border)] bg-white p-3">
+            <p className="text-xs text-[color:var(--app-muted)]">Signed in as</p>
+            <p className="mb-3 text-sm font-semibold text-slate-900">{session.username}</p>
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                className="w-full rounded-lg border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              >
+                Logout
+              </button>
+            </form>
+          </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-col">
+          <header className="border-b border-[color:var(--app-border)] bg-white/75 px-4 py-4 backdrop-blur sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="w-full max-w-md">
+                <label className="sr-only" htmlFor="dashboardSearch">
+                  Search
+                </label>
+                <input
+                  id="dashboardSearch"
+                  placeholder="Search dashboard..."
+                  className="w-full rounded-full border border-[color:var(--app-border)] bg-white px-4 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-blue-300"
+                />
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-[color:var(--app-border)] bg-white p-1 text-xs font-semibold text-slate-500">
+                <span className="rounded-full bg-slate-900 px-3 py-1 text-white">Today</span>
+                <span className="rounded-full px-3 py-1">Week</span>
+                <span className="rounded-full px-3 py-1">Month</span>
+                <span className="rounded-full px-3 py-1">Year</span>
+              </div>
+            </div>
+          </header>
+
+          <main className="flex w-full min-w-0 flex-col gap-6 bg-[color:var(--app-bg)] px-4 py-6 sm:px-6">
+            <section className="rounded-2xl border border-[color:var(--app-border)] bg-white px-4 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--app-muted)]">Overview</p>
+              <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">House Ops Dashboard</h1>
+              <p className="mt-2 text-sm text-[color:var(--app-muted)]">
+                Overdue: {dashboard.overdueCount} · Due soon: {dashboard.dueSoonCount} · Unpaid this month:{" "}
+                {dashboard.unpaidCount}
+              </p>
+            </section>
         {params.error ? (
           <div className="rounded-md border border-[color:var(--app-error)]/25 bg-[color:var(--app-error)]/10 px-4 py-3 text-sm text-[color:var(--app-error)]">
             Something went wrong with that action. Please review the input and try again.
           </div>
         ) : null}
 
-        <section className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 shadow-[0_8px_24px_rgba(31,36,48,0.08)] sm:p-6">
+        <section className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4 shadow-[0_8px_24px_rgba(31,36,48,0.08)] sm:p-6">
           <h2 className="text-lg font-semibold">Urgent Actions</h2>
           <p className="mt-1 text-sm text-[color:var(--app-muted)]">
             Overdue: {dashboard.overdueCount} · Due soon: {dashboard.dueSoonCount} · Unpaid this month:{" "}
@@ -123,7 +166,7 @@ export default async function Home({ searchParams }: Props) {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-2">
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4 sm:p-6">
             <h2 className="text-base font-semibold">Monthly Close</h2>
             {dashboard.monthClose?.status === "locked" ? (
               <div className="mt-2 space-y-2">
@@ -157,7 +200,7 @@ export default async function Home({ searchParams }: Props) {
               </div>
             )}
           </article>
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4 sm:p-6">
             <h2 className="text-base font-semibold">Anomaly + Drift Alerts</h2>
             {dashboard.anomalyAlerts.length === 0 ? (
               <p className="mt-2 text-sm text-[color:var(--app-muted)]">No significant anomalies detected.</p>
@@ -175,43 +218,43 @@ export default async function Home({ searchParams }: Props) {
         </section>
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Prorated monthly home cost</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.totalMonthlyCostCents)}</p>
           </article>
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Cashflow due this month</p>
             <p className="font-data mt-1 text-2xl font-semibold">
               {formatCurrency(dashboard.cashflowThisMonthCostCents)}
             </p>
           </article>
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Projected yearly home cost</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.projectedYearlyCostCents)}</p>
           </article>
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Utilities total</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.utilitiesTotalCents)}</p>
           </article>
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Upgrade spend</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.upgradesTotalCents)}</p>
           </article>
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Utility projection variance</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.utilityProjection.varianceCents)}</p>
             <p className="mt-1 text-xs text-[color:var(--app-muted)]">
               {dashboard.utilityProjection.coverageCount} categories with actual values.
             </p>
           </article>
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Upgrade plan variance</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.upgradeProjection.varianceCents)}</p>
             <p className="mt-1 text-xs text-[color:var(--app-muted)]">
               {dashboard.upgradeProjection.coverageCount} projects with actual values.
             </p>
           </article>
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Month close health score</p>
             <p className="font-data mt-1 text-2xl font-semibold">{dashboard.closeHealthScorePct}%</p>
             <p className="mt-1 text-xs text-[color:var(--app-muted)]">
@@ -220,7 +263,7 @@ export default async function Home({ searchParams }: Props) {
           </article>
         </section>
 
-        <section className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+        <section className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4 sm:p-6">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-base font-semibold">Monthly spend trend (snapshot)</h2>
             {analytics.isStale ? (
@@ -252,7 +295,7 @@ export default async function Home({ searchParams }: Props) {
           )}
         </section>
 
-        <section className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+        <section className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4 sm:p-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <h2 className="text-base font-semibold">Cashflow Calendar</h2>
             <form method="get" className="flex flex-wrap items-end gap-2">
@@ -296,14 +339,14 @@ export default async function Home({ searchParams }: Props) {
         </section>
 
         <section className="grid gap-3 lg:grid-cols-3">
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Bills paid this cycle</p>
             <p className="font-data mt-1 text-2xl font-semibold">{dashboard.paidRatePct}%</p>
             <p className="mt-1 text-xs text-[color:var(--app-muted)]">
               {dashboard.paidCount} of {dashboard.bills.length} recurring bills marked paid.
             </p>
           </article>
-          <article className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 lg:col-span-2">
+          <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4 lg:col-span-2">
             <p className="text-sm text-[color:var(--app-muted)]">Top monthly cost categories</p>
             {dashboard.categoryTotals.length === 0 ? (
               <p className="mt-2 text-sm text-[color:var(--app-muted)]">Add bills to unlock category analytics.</p>
@@ -321,7 +364,7 @@ export default async function Home({ searchParams }: Props) {
         </section>
 
         <section className="grid gap-6 lg:grid-cols-2">
-          <div className="space-y-4 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+          <div className="space-y-4 rounded-2xl border border-[color:var(--app-border)] bg-white p-4 sm:p-6">
             <h3 className="text-lg font-semibold">Recurring Bills</h3>
             {dashboard.bills.length === 0 ? (
               <p className="rounded-md border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-bg)] px-4 py-3 text-sm text-[color:var(--app-muted)]">
@@ -434,7 +477,7 @@ export default async function Home({ searchParams }: Props) {
             </form>
           </div>
 
-          <div className="space-y-4 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+          <div className="space-y-4 rounded-2xl border border-[color:var(--app-border)] bg-white p-4 sm:p-6">
             <h3 className="text-lg font-semibold">Upgrades and Recent Activity</h3>
             {dashboard.upgrades.length === 0 ? (
               <p className="rounded-md border border-dashed border-[color:var(--app-border)] bg-[color:var(--app-bg)] px-4 py-3 text-sm text-[color:var(--app-muted)]">
@@ -486,7 +529,7 @@ export default async function Home({ searchParams }: Props) {
           </div>
         </section>
 
-        <section className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface)] p-4 sm:p-6">
+        <section className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4 sm:p-6">
           <h3 className="text-base font-semibold">Household Accountability Timeline</h3>
           {dashboard.recentActivity.length === 0 ? (
             <p className="mt-2 text-sm text-[color:var(--app-muted)]">No timeline events yet.</p>
@@ -509,7 +552,9 @@ export default async function Home({ searchParams }: Props) {
             </ul>
           )}
         </section>
-      </main>
+          </main>
+        </div>
+      </div>
     </div>
   );
 }
