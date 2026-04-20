@@ -74,10 +74,10 @@ export default async function Home({ searchParams }: Props) {
   } as CSSProperties;
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#192246_0%,#0f1737_45%,#090d1f_100%)] px-4 py-6 text-[color:var(--app-foreground)] sm:px-6">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#192246_0%,#0f1737_45%,#090d1f_100%)] text-[color:var(--app-foreground)]">
       <div
         style={dashboardTheme}
-        className="mx-auto grid w-full max-w-[1450px] overflow-hidden rounded-[30px] border border-slate-200 bg-[color:var(--app-surface)] shadow-[0_40px_100px_rgba(2,6,23,0.45)] lg:grid-cols-[240px_1fr]"
+        className="grid min-h-screen w-full overflow-hidden border border-slate-200 bg-[color:var(--app-surface)] shadow-[0_40px_100px_rgba(2,6,23,0.45)] lg:grid-cols-[260px_1fr] 2xl:grid-cols-[290px_1fr]"
       >
         <aside className="flex flex-col border-r border-[color:var(--app-border)] bg-white/70 p-4">
           <div className="flex items-center gap-3 rounded-2xl border border-[color:var(--app-border)] bg-white px-3 py-3">
@@ -121,9 +121,9 @@ export default async function Home({ searchParams }: Props) {
         </aside>
 
         <div className="flex min-w-0 flex-col">
-          <header className="border-b border-[color:var(--app-border)] bg-white/75 px-4 py-4 backdrop-blur sm:px-6">
+          <header className="border-b border-[color:var(--app-border)] bg-white/75 px-4 py-4 backdrop-blur sm:px-6 xl:px-8 2xl:px-10">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="w-full max-w-md">
+              <div className="w-full max-w-xl">
                 <label className="sr-only" htmlFor="dashboardSearch">
                   Search
                 </label>
@@ -142,7 +142,7 @@ export default async function Home({ searchParams }: Props) {
             </div>
           </header>
 
-          <main className="flex w-full min-w-0 flex-col gap-6 bg-[color:var(--app-bg)] px-4 py-6 sm:px-6">
+          <main className="flex w-full min-w-0 flex-col gap-6 bg-[color:var(--app-bg)] px-4 py-6 sm:px-6 xl:px-8 2xl:px-10">
             <section className="rounded-2xl border border-[color:var(--app-border)] bg-white px-4 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--app-muted)]">Overview</p>
               <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">House Ops Dashboard</h1>
@@ -217,7 +217,7 @@ export default async function Home({ searchParams }: Props) {
           </article>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
           <article className="rounded-2xl border border-[color:var(--app-border)] bg-white p-4">
             <p className="text-sm text-[color:var(--app-muted)]">Prorated monthly home cost</p>
             <p className="font-data mt-1 text-2xl font-semibold">{formatCurrency(dashboard.totalMonthlyCostCents)}</p>
