@@ -244,65 +244,66 @@ export async function getDashboardData(now = new Date(), options: DashboardOptio
   const monthKey = monthKeyFromDate(now);
   const todayDate = dateStringInTimezone(now);
   const [year, month] = monthKey.split("-").map(Number);
-
-  const bills = await prisma.bill.findMany({
-    where: { archivedAt: null },
-    orderBy: { name: "asc" },
-    include: {
-      payments: {
-        where: { paymentEventKey: { startsWith: `${monthKey}:` } },
-        select: { id: true },
-      },
-    },
-  });
-
-  const upgrades: DashboardData["upgrades"] = await prisma.upgrade.findMany({
-    where: {
-      loggedAt: {
-        gte: new Date(`${monthKey}-01T00:00:00.000Z`),
-        lt: new Date(
-          `${month === 12 ? year + 1 : year}-${String(month === 12 ? 1 : month + 1).padStart(2, "0")}-01T00:00:00.000Z`,
-        ),
-      },
-    },
-    orderBy: { loggedAt: "desc" },
-  });
-  const [utilityProjections, plannedUpgradeMonths, actualUpgradeMonths, monthClose, recentActivity] = await Promise.all([
-    prisma.utilityProjection.findMany({
-      where: { monthKey },
-      select: { category: true, plannedCents: true, actualCents: true },
-    }),
-    prisma.upgradePlanMonth.findMany({
-      where: { monthKey },
-      select: { projectId: true, plannedCents: true },
-    }),
-    prisma.upgradeActualMonth.findMany({
-      where: { monthKey },
-      select: { projectId: true, actualCents: true },
-    }),
-    prisma.monthClose.findUnique({
-      where: { monthKey },
-      select: {
-        monthKey: true,
-        status: true,
-        closedByUsername: true,
-        closedAt: true,
-        reopenedAt: true,
-      },
-    }),
-    prisma.activityLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 12,
-      select: {
-        id: true,
-        action: true,
-        actorUsername: true,
-        summary: true,
-        createdAt: true,
-        monthKey: true,
-      },
-    }),
-  ]);
+  const monthStart = new Date(`${monthKey}-01T00:00:00.000Z`);
+  const nextMonthStart = new Date(
+    `${month === 12 ? year + 1 : year}-${String(month === 12 ? 1 : month + 1).padStart(2, "0")}-01T00:00:00.000Z`,
+  );
+  const [bills, upgrades, utilityProjections, plannedUpgradeMonths, actualUpgradeMonths, monthClose, recentActivity] =
+    await Promise.all([
+      prisma.bill.findMany({
+        where: { archivedAt: null },
+        orderBy: { name: "asc" },
+        include: {
+          payments: {
+            where: { paymentEventKey: { startsWith: `${monthKey}:` } },
+            select: { id: true },
+          },
+        },
+      }),
+      prisma.upgrade.findMany({
+        where: {
+          loggedAt: {
+            gte: monthStart,
+            lt: nextMonthStart,
+          },
+        },
+        orderBy: { loggedAt: "desc" },
+      }),
+      prisma.utilityProjection.findMany({
+        where: { monthKey },
+        select: { category: true, plannedCents: true, actualCents: true },
+      }),
+      prisma.upgradePlanMonth.findMany({
+        where: { monthKey },
+        select: { projectId: true, plannedCents: true },
+      }),
+      prisma.upgradeActualMonth.findMany({
+        where: { monthKey },
+        select: { projectId: true, actualCents: true },
+      }),
+      prisma.monthClose.findUnique({
+        where: { monthKey },
+        select: {
+          monthKey: true,
+          status: true,
+          closedByUsername: true,
+          closedAt: true,
+          reopenedAt: true,
+        },
+      }),
+      prisma.activityLog.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 12,
+        select: {
+          id: true,
+          action: true,
+          actorUsername: true,
+          summary: true,
+          createdAt: true,
+          monthKey: true,
+        },
+      }),
+    ]);
 
   const mappedBills: DashboardBill[] = bills.map((bill: (typeof bills)[number]) => {
     const dueDatesThisMonth = dueDatesForMonth(bill.recurrenceRule, year, month);
