@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { cleanBudgetDataWithAiAction, importBudgetCsvAction, logoutAction, saveBudgetTargetAction } from "@/app/actions";
 import { AiCleanupButton } from "@/app/budget/ai-cleanup-button";
+import { ThemeToggle } from "@/app/components/theme-toggle";
 import { getSession } from "@/lib/auth/session";
 import { getBudgetAiPreflight } from "@/lib/budget-ai";
 import { getBudgetPageData } from "@/lib/budget";
@@ -98,14 +99,17 @@ export default async function BudgetPage({ searchParams }: Props) {
             <h1 className="text-xl font-semibold tracking-tight text-slate-100 sm:text-2xl">Budget Ledger</h1>
             <p className="mt-2 text-sm text-slate-400">Track imports, targets, and trends with the same nav placement as the dashboard.</p>
           </div>
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="rounded-full border border-slate-600/70 bg-slate-900/80 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-400 hover:bg-slate-800"
-            >
-              Logout {session.username}
-            </button>
-          </form>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                className="rounded-full border border-slate-600/70 bg-slate-900/80 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-400 hover:bg-slate-800"
+              >
+                Logout {session.username}
+              </button>
+            </form>
+          </div>
         </div>
       </header>
 

@@ -11,6 +11,25 @@
   --app-warning: #b7791f;
   --app-error: #b23a48;
   --app-info: #2c6e9b;
+  --app-shell-bg: radial-gradient(circle at top, #192246 0%, #0f1737 45%, #090d1f 100%);
+  --app-panel: #ffffff;
+  --app-panel-soft: rgba(255, 255, 255, 0.75);
+}
+
+html[data-theme="dark"] {
+  --app-bg: #0b1220;
+  --app-surface: #111a2d;
+  --app-foreground: #e2e8f0;
+  --app-muted: #94a3b8;
+  --app-accent: #60a5fa;
+  --app-border: #223049;
+  --app-success: #34d399;
+  --app-warning: #f59e0b;
+  --app-error: #f87171;
+  --app-info: #7dd3fc;
+  --app-shell-bg: radial-gradient(circle at top, #040812 0%, #070f1f 45%, #030711 100%);
+  --app-panel: #0f172a;
+  --app-panel-soft: rgba(15, 23, 42, 0.85);
 }
 
 @theme inline {
@@ -24,6 +43,25 @@ body {
   background: radial-gradient(circle at top right, rgba(198, 93, 58, 0.08), transparent 40%), var(--app-bg);
   color: var(--app-foreground);
   font-family: var(--font-body), sans-serif;
+}
+
+html[data-theme="dark"] .bg-white {
+  background-color: var(--app-panel) !important;
+}
+
+html[data-theme="dark"] .text-slate-900 {
+  color: #e2e8f0 !important;
+}
+
+html[data-theme="dark"] .text-slate-700,
+html[data-theme="dark"] .text-slate-600,
+html[data-theme="dark"] .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="dark"] .border-slate-200,
+html[data-theme="dark"] .border-slate-300 {
+  border-color: var(--app-border) !important;
 }
 
 h1,

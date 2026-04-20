@@ -10,6 +10,7 @@ import {
   markPaidAction,
   reopenMonthAction,
 } from "@/app/actions";
+import { ThemeToggle } from "@/app/components/theme-toggle";
 import { getAnalyticsTrendData } from "@/lib/analytics";
 import { getSession } from "@/lib/auth/session";
 import { getDashboardData } from "@/lib/dashboard";
@@ -74,7 +75,7 @@ export default async function Home({ searchParams }: Props) {
   } as CSSProperties;
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#192246_0%,#0f1737_45%,#090d1f_100%)] text-[color:var(--app-foreground)]">
+    <div className="min-h-screen bg-[var(--app-shell-bg)] text-[color:var(--app-foreground)] transition-colors">
       <div
         style={dashboardTheme}
         className="grid min-h-screen w-full overflow-hidden border border-slate-200 bg-[color:var(--app-surface)] shadow-[0_40px_100px_rgba(2,6,23,0.45)] lg:grid-cols-[260px_1fr] 2xl:grid-cols-[290px_1fr]"
@@ -121,7 +122,7 @@ export default async function Home({ searchParams }: Props) {
         </aside>
 
         <div className="flex min-w-0 flex-col">
-          <header className="border-b border-[color:var(--app-border)] bg-white/75 px-4 py-4 backdrop-blur sm:px-6 xl:px-8 2xl:px-10">
+          <header className="border-b border-[color:var(--app-border)] bg-[color:var(--app-panel-soft)] px-4 py-4 backdrop-blur sm:px-6 xl:px-8 2xl:px-10">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="w-full max-w-xl">
                 <label className="sr-only" htmlFor="dashboardSearch">
@@ -139,6 +140,7 @@ export default async function Home({ searchParams }: Props) {
                 <span className="rounded-full px-3 py-1">Month</span>
                 <span className="rounded-full px-3 py-1">Year</span>
               </div>
+              <ThemeToggle />
             </div>
           </header>
 
