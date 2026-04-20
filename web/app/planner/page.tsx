@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { applyScenarioAction, cloneScenarioToDraftAction, logoutAction, saveScenarioAction } from "@/app/actions";
+import { applyScenarioAction, cloneScenarioToDraftAction, saveScenarioAction } from "@/app/actions";
+import { AppShell } from "@/app/components/app-shell";
 import { getSession } from "@/lib/auth/session";
 import { formatCurrency } from "@/lib/money";
 import { buildScenarioCompareDelta } from "@/lib/planner-builder";
@@ -187,54 +188,8 @@ export default async function PlannerPage({ searchParams }: Props) {
   const defaults = defaultsFromScenario(selectedScenario);
 
   return (
-    <div className="min-h-screen text-[color:var(--app-foreground)]">
-      <header className="border-b border-[color:var(--app-border)] bg-[color:var(--app-surface)]/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <div>
-            <p className="text-sm text-[color:var(--app-muted)]">HomeDashboard</p>
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Planner Lab</h1>
-            <div className="mt-3 flex items-center gap-2">
-              <Link
-                href="/"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Dashboard
-              </Link>
-              <span className="rounded-md bg-[color:var(--app-accent)] px-3 py-1 text-xs font-semibold text-white">
-                Planner Lab
-              </span>
-              <Link
-                href="/budget"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Budget
-              </Link>
-              <Link
-                href="/projections"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Projections
-              </Link>
-              <Link
-                href="/upgrades"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Upgrades
-              </Link>
-            </div>
-          </div>
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="rounded-md border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm hover:bg-[color:var(--app-bg)]"
-            >
-              Logout {session.username}
-            </button>
-          </form>
-        </div>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
+    <AppShell title="Planner Lab" username={session.username} activeNav="planner">
+      <main className="flex w-full min-w-0 flex-col gap-6">
         {params.error ? (
           <div className="rounded-md border border-[color:var(--app-error)]/25 bg-[color:var(--app-error)]/10 px-4 py-3 text-sm text-[color:var(--app-error)]">
             Planner action failed. Check values and try again.
@@ -487,6 +442,6 @@ export default async function PlannerPage({ searchParams }: Props) {
           )}
         </section>
       </main>
-    </div>
+    </AppShell>
   );
 }

@@ -1,12 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
   deleteUtilityProjectionAction,
-  logoutAction,
   saveUtilityProjectionAction,
   seedUtilityProjectionDefaultsAction,
 } from "@/app/actions";
+import { AppShell } from "@/app/components/app-shell";
 import { getSession } from "@/lib/auth/session";
 import { formatCurrency } from "@/lib/money";
 import { getUtilityProjectionData, resolveProjectionMonthKey } from "@/lib/projections";
@@ -52,54 +51,8 @@ export default async function ProjectionsPage({ searchParams }: Props) {
   const hasError = typeof params.error === "string";
 
   return (
-    <div className="min-h-screen text-[color:var(--app-foreground)]">
-      <header className="border-b border-[color:var(--app-border)] bg-[color:var(--app-surface)]/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <div>
-            <p className="text-sm text-[color:var(--app-muted)]">HomeDashboard</p>
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Utility Projections</h1>
-            <div className="mt-3 flex items-center gap-2">
-              <Link
-                href="/"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/planner"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Planner Lab
-              </Link>
-              <Link
-                href="/budget"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Budget
-              </Link>
-              <span className="rounded-md bg-[color:var(--app-accent)] px-3 py-1 text-xs font-semibold text-white">
-                Projections
-              </span>
-              <Link
-                href="/upgrades"
-                className="rounded-md border border-[color:var(--app-border)] px-3 py-1 text-xs font-semibold text-[color:var(--app-muted)] hover:bg-[color:var(--app-bg)]"
-              >
-                Upgrades
-              </Link>
-            </div>
-          </div>
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="rounded-md border border-[color:var(--app-border)] bg-[color:var(--app-surface)] px-3 py-2 text-sm hover:bg-[color:var(--app-bg)]"
-            >
-              Logout {session.username}
-            </button>
-          </form>
-        </div>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
+    <AppShell title="Utility Projections" username={session.username} activeNav="projections">
+      <main className="flex w-full min-w-0 flex-col gap-6">
         {hasError ? (
           <div className="rounded-md border border-[color:var(--app-error)]/25 bg-[color:var(--app-error)]/10 px-4 py-3 text-sm text-[color:var(--app-error)]">
             Projection action failed. Check category and amount values, then retry.
@@ -292,6 +245,6 @@ export default async function ProjectionsPage({ searchParams }: Props) {
           </form>
         </section>
       </main>
-    </div>
+    </AppShell>
   );
 }

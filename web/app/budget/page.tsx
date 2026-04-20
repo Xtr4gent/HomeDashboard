@@ -96,35 +96,7 @@ export default async function BudgetPage({ searchParams }: Props) {
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">HomeDashboard</p>
             <h1 className="text-xl font-semibold tracking-tight text-slate-100 sm:text-2xl">Budget Ledger</h1>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Link
-                href="/"
-                className="rounded-full border border-slate-700/80 bg-slate-900/70 px-3 py-1 text-xs font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/planner"
-                className="rounded-full border border-slate-700/80 bg-slate-900/70 px-3 py-1 text-xs font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
-              >
-                Planner Lab
-              </Link>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-900">
-                Budget
-              </span>
-              <Link
-                href="/projections"
-                className="rounded-full border border-slate-700/80 bg-slate-900/70 px-3 py-1 text-xs font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
-              >
-                Projections
-              </Link>
-              <Link
-                href="/upgrades"
-                className="rounded-full border border-slate-700/80 bg-slate-900/70 px-3 py-1 text-xs font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
-              >
-                Upgrades
-              </Link>
-            </div>
+            <p className="mt-2 text-sm text-slate-400">Track imports, targets, and trends with the same nav placement as the dashboard.</p>
           </div>
           <form action={logoutAction}>
             <button
@@ -137,24 +109,56 @@ export default async function BudgetPage({ searchParams }: Props) {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6">
-        {hasError ? (
-          <div className="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
-            {errorCode === "openai_api_key_missing"
-              ? "OpenAI key is missing. Set OPENAI_API_KEY before running AI cleanup."
-              : errorCode === "openai_daily_limit_reached"
-                ? "AI cleanup daily limit reached. Try again tomorrow."
-                : errorCode === "openai_monthly_budget_reached"
-                  ? "AI cleanup is blocked because your monthly AI budget cap was reached."
-                  : "Budget action failed. Review your CSV or input and retry."}
-          </div>
-        ) : null}
-        {successCode === "ai_cleanup" ? (
-          <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
-            AI cleanup completed. Updated {Number.isFinite(updatedCount) ? updatedCount : 0} transactions. Estimated cost{" "}
-            {formatCurrency(Number.isFinite(costCents) ? costCents : 0)}.
-          </div>
-        ) : null}
+      <main className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[240px_1fr]">
+        <aside className="h-fit rounded-2xl border border-slate-700/70 bg-slate-950/55 p-3 backdrop-blur-xl">
+          <p className="px-3 pb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Navigation</p>
+          <nav className="space-y-1 text-sm">
+            <Link
+              href="/"
+              className="block rounded-xl px-3 py-2 font-semibold text-slate-300 transition hover:bg-slate-800/60 hover:text-white"
+            >
+              Overview
+            </Link>
+            <Link
+              href="/planner"
+              className="block rounded-xl px-3 py-2 font-semibold text-slate-300 transition hover:bg-slate-800/60 hover:text-white"
+            >
+              Planner Lab
+            </Link>
+            <span className="block rounded-xl bg-slate-100 px-3 py-2 font-semibold text-slate-900">Budget</span>
+            <Link
+              href="/projections"
+              className="block rounded-xl px-3 py-2 font-semibold text-slate-300 transition hover:bg-slate-800/60 hover:text-white"
+            >
+              Projections
+            </Link>
+            <Link
+              href="/upgrades"
+              className="block rounded-xl px-3 py-2 font-semibold text-slate-300 transition hover:bg-slate-800/60 hover:text-white"
+            >
+              Upgrades
+            </Link>
+          </nav>
+        </aside>
+
+        <div className="flex min-w-0 flex-col gap-6">
+          {hasError ? (
+            <div className="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
+              {errorCode === "openai_api_key_missing"
+                ? "OpenAI key is missing. Set OPENAI_API_KEY before running AI cleanup."
+                : errorCode === "openai_daily_limit_reached"
+                  ? "AI cleanup daily limit reached. Try again tomorrow."
+                  : errorCode === "openai_monthly_budget_reached"
+                    ? "AI cleanup is blocked because your monthly AI budget cap was reached."
+                    : "Budget action failed. Review your CSV or input and retry."}
+            </div>
+          ) : null}
+          {successCode === "ai_cleanup" ? (
+            <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+              AI cleanup completed. Updated {Number.isFinite(updatedCount) ? updatedCount : 0} transactions. Estimated cost{" "}
+              {formatCurrency(Number.isFinite(costCents) ? costCents : 0)}.
+            </div>
+          ) : null}
 
         <section className="rounded-3xl border border-slate-700/70 bg-slate-950/55 p-5 shadow-[0_20px_80px_rgba(2,8,23,0.45)] backdrop-blur-xl sm:p-7">
           <div className="grid gap-6 lg:grid-cols-[1.45fr_1fr]">
@@ -386,6 +390,7 @@ export default async function BudgetPage({ searchParams }: Props) {
             </article>
           </section>
         ) : null}
+        </div>
       </main>
     </div>
   );
