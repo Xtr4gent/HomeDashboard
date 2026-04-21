@@ -90,6 +90,7 @@ const importBudgetCsvSchema = z.object({
   accountName: z.string().min(1),
   institution: z.string().optional(),
   monthKey: z.string().min(1),
+  autoCategorize: z.boolean().optional(),
 });
 
 const saveBudgetTargetSchema = z.object({
@@ -168,6 +169,33 @@ async function logActivity(args: {
       metadata: args.metadata,
     },
   });
+}
+
+async function runBudgetAiCleanupAndLog(args: {
+  actorUsername: string;
+  monthKey: string;
+  source: "ai_cleanup" | "ai_import_autocategorize";
+}): Promise<Awaited<ReturnType<typeof cleanBudgetDataWithAi>>> {
+  const result = await cleanBudgetDataWithAi({ monthKey: args.monthKey });
+  await logActivity({
+    action: "budget_transaction_updated",
+    actorUsername: args.actorUsername,
+    entityType: "budget_transaction",
+    monthKey: args.monthKey,
+    summary: `AI cleanup updated ${result.updatedRows} rows`,
+    metadata: {
+      source: args.source,
+      scannedRows: result.scannedRows,
+      updatedRows: result.updatedRows,
+      skippedRows: result.skippedRows,
+      acceptedSuggestions: result.acceptedSuggestions,
+      confidenceThreshold: result.confidenceThreshold,
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      estimatedCostCents: result.estimatedCostCents,
+    },
+  });
+  return result;
 }
 
 export async function addBillAction(formData: FormData): Promise<void> {
@@ -1080,6 +1108,7 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
     accountName: String(formData.get("accountName") ?? ""),
     institution: String(formData.get("institution") ?? "").trim() || undefined,
     monthKey: String(formData.get("monthKey") ?? ""),
+    autoCategorize: String(formData.get("autoCategorize") ?? "") === "on",
   });
   if (!parsed.success) {
     redirect("/budget?error=invalid_budget_import");
@@ -1096,6 +1125,10 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
   let importRedirectSuccess = "";
   let importRedirectImported = "0";
   let importRedirectDuplicates = "0";
+  let importRedirectAiStatus = "disabled";
+  let importRedirectAiUpdated = "0";
+  let importRedirectAiCostCents = "0";
+  let importRedirectAiError = "";
   try {
     const result = await importBudgetCsv({
       accountName: parsed.data.accountName,
@@ -1107,6 +1140,8 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
     importRedirectSuccess = "budget_imported";
     importRedirectImported = String(result.importedCount);
     importRedirectDuplicates = String(result.duplicateCount);
+    importRedirectAiCostCents = String(result.aiNormalizationCostCents ?? 0);
+    importRedirectAiStatus = parsed.data.autoCategorize ? "queued" : "disabled";
     await logActivity({
       action: "budget_imported",
       actorUsername: session.username,
@@ -1117,8 +1152,25 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
       metadata: {
         importedCount: result.importedCount,
         duplicateCount: result.duplicateCount,
+        aiNormalizationUsed: result.aiNormalizationUsed,
+        aiNormalizationCostCents: result.aiNormalizationCostCents,
       },
     });
+    if (parsed.data.autoCategorize) {
+      try {
+        const cleanup = await runBudgetAiCleanupAndLog({
+          actorUsername: session.username,
+          monthKey: importRedirectMonthKey,
+          source: "ai_import_autocategorize",
+        });
+        importRedirectAiStatus = "completed";
+        importRedirectAiUpdated = String(cleanup.updatedRows);
+        importRedirectAiCostCents = String((result.aiNormalizationCostCents ?? 0) + cleanup.estimatedCostCents);
+      } catch (aiError: unknown) {
+        importRedirectAiStatus = "skipped";
+        importRedirectAiError = encodeURIComponent(aiError instanceof Error ? aiError.message : "ai_cleanup_failed");
+      }
+    }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "budget_import_failed";
     redirect(`/budget?month=${encodeURIComponent(monthKey)}&tab=accounts&error=${encodeURIComponent(message)}`);
@@ -1126,7 +1178,7 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
 
   revalidatePath("/budget");
   redirect(
-    `/budget?month=${encodeURIComponent(importRedirectMonthKey)}&tab=transactions&success=${importRedirectSuccess}&imported=${importRedirectImported}&duplicates=${importRedirectDuplicates}`,
+    `/budget?month=${encodeURIComponent(importRedirectMonthKey)}&tab=transactions&success=${importRedirectSuccess}&imported=${importRedirectImported}&duplicates=${importRedirectDuplicates}&aiStatus=${importRedirectAiStatus}&aiUpdated=${importRedirectAiUpdated}&aiCostCents=${importRedirectAiCostCents}${importRedirectAiError ? `&aiError=${importRedirectAiError}` : ""}`,
   );
 }
 
@@ -1192,24 +1244,10 @@ export async function cleanBudgetDataWithAiAction(formData: FormData): Promise<v
   const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
   let result: Awaited<ReturnType<typeof cleanBudgetDataWithAi>>;
   try {
-    result = await cleanBudgetDataWithAi({ monthKey });
-    await logActivity({
-      action: "budget_transaction_updated",
+    result = await runBudgetAiCleanupAndLog({
       actorUsername: session.username,
-      entityType: "budget_transaction",
       monthKey,
-      summary: `AI cleanup updated ${result.updatedRows} rows`,
-      metadata: {
-        source: "ai_cleanup",
-        scannedRows: result.scannedRows,
-        updatedRows: result.updatedRows,
-        skippedRows: result.skippedRows,
-        acceptedSuggestions: result.acceptedSuggestions,
-        confidenceThreshold: result.confidenceThreshold,
-        promptTokens: result.promptTokens,
-        completionTokens: result.completionTokens,
-        estimatedCostCents: result.estimatedCostCents,
-      },
+      source: "ai_cleanup",
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "budget_ai_cleanup_failed";

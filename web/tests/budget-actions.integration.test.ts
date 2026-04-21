@@ -65,6 +65,8 @@ describe("budget actions", () => {
       duplicateCount: 1,
       rowCount: 3,
       importedMonthKey: "2025-10",
+      aiNormalizationUsed: false,
+      aiNormalizationCostCents: 0,
     });
     cleanBudgetDataWithAiMock.mockResolvedValue({
       scannedRows: 12,
@@ -122,10 +124,43 @@ describe("budget actions", () => {
     formData.set("csvFile", new File(["date,description,amount\n2025-10-22,RANI,-223.55"], "sample.csv", { type: "text/csv" }));
 
     await expect(importBudgetCsvAction(formData)).rejects.toThrow(
-      "REDIRECT:/budget?month=2025-10&tab=transactions&success=budget_imported&imported=2&duplicates=1",
+      "REDIRECT:/budget?month=2025-10&tab=transactions&success=budget_imported&imported=2&duplicates=1&aiStatus=disabled&aiUpdated=0&aiCostCents=0",
     );
     expect(importBudgetCsvMock).toHaveBeenCalled();
     expect(revalidatePathMock).toHaveBeenCalledWith("/budget");
+  });
+
+  test("importBudgetCsvAction can auto-categorize imported month", async () => {
+    const { importBudgetCsvAction } = await import("@/app/actions");
+    cleanBudgetDataWithAiMock.mockResolvedValueOnce({
+      scannedRows: 5,
+      updatedRows: 3,
+      skippedRows: 2,
+      acceptedSuggestions: 3,
+      confidenceThreshold: 0.78,
+      promptTokens: 120,
+      completionTokens: 80,
+      estimatedCostCents: 2,
+    });
+    importBudgetCsvMock.mockResolvedValueOnce({
+      batchId: "batch-2",
+      importedCount: 5,
+      duplicateCount: 0,
+      rowCount: 5,
+      importedMonthKey: "2025-10",
+      aiNormalizationUsed: true,
+      aiNormalizationCostCents: 1,
+    });
+    const formData = new FormData();
+    formData.set("accountName", "Joint");
+    formData.set("monthKey", "2026-04");
+    formData.set("autoCategorize", "on");
+    formData.set("csvFile", new File(["date,description,amount\n2025-10-22,RANI,-223.55"], "sample.csv", { type: "text/csv" }));
+
+    await expect(importBudgetCsvAction(formData)).rejects.toThrow(
+      "REDIRECT:/budget?month=2025-10&tab=transactions&success=budget_imported&imported=5&duplicates=0&aiStatus=completed&aiUpdated=3&aiCostCents=3",
+    );
+    expect(cleanBudgetDataWithAiMock).toHaveBeenCalledWith({ monthKey: "2025-10" });
   });
 
   test("cleanBudgetDataWithAiAction redirects with success metadata", async () => {

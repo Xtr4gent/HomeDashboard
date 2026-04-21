@@ -1,18 +1,9 @@
 import { z } from "zod";
 
+import { estimateBudgetAiCostCents, readBudgetAiUsage } from "@/lib/budget-ai-guardrails";
 import { env } from "@/lib/env";
 import { normalizeMerchantName } from "@/lib/budget";
 import { prisma } from "@/lib/prisma";
-
-type AiPricing = {
-  inputUsdPerMillion: number;
-  outputUsdPerMillion: number;
-};
-
-type UsageWindow = {
-  runsToday: number;
-  spentCentsThisMonth: number;
-};
 
 export type BudgetAiPreflight = {
   model: string;
@@ -38,18 +29,6 @@ export type BudgetAiCleanupResult = {
   estimatedCostCents: number;
 };
 
-const DEFAULT_PRICING: AiPricing = {
-  inputUsdPerMillion: 0.4,
-  outputUsdPerMillion: 1.6,
-};
-
-const MODEL_PRICING: Record<string, AiPricing> = {
-  "gpt-4.1-mini": DEFAULT_PRICING,
-  "gpt-4.1": { inputUsdPerMillion: 2, outputUsdPerMillion: 8 },
-  "gpt-4o-mini": { inputUsdPerMillion: 0.15, outputUsdPerMillion: 0.6 },
-  "gpt-4o": { inputUsdPerMillion: 2.5, outputUsdPerMillion: 10 },
-};
-
 const PROMPT_TOKENS_PER_ROW = 42;
 const COMPLETION_TOKENS_PER_ROW = 24;
 const CONFIDENCE_THRESHOLD = 0.78;
@@ -66,25 +45,6 @@ const aiCleanupSchema = z.object({
   ),
 });
 
-function getPricing(model: string): AiPricing {
-  return MODEL_PRICING[model] ?? DEFAULT_PRICING;
-}
-
-function estimateCostCents(args: { model: string; inputTokens: number; outputTokens: number }): number {
-  const pricing = getPricing(args.model);
-  const inputUsd = (args.inputTokens / 1_000_000) * pricing.inputUsdPerMillion;
-  const outputUsd = (args.outputTokens / 1_000_000) * pricing.outputUsdPerMillion;
-  return Math.max(0, Math.ceil((inputUsd + outputUsd) * 100));
-}
-
-function monthStartUtc(now: Date): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
-}
-
-function dayStartUtc(now: Date): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-}
-
 function sanitizeCategory(raw: string): string {
   return raw
     .toLowerCase()
@@ -94,54 +54,9 @@ function sanitizeCategory(raw: string): string {
     .slice(0, 40);
 }
 
-async function readUsage(now: Date): Promise<UsageWindow> {
-  const [todayLogs, monthLogs] = await Promise.all([
-    prisma.activityLog.findMany({
-      where: {
-        action: "budget_transaction_updated",
-        createdAt: { gte: dayStartUtc(now) },
-      },
-      select: { metadata: true },
-    }),
-    prisma.activityLog.findMany({
-      where: {
-        action: "budget_transaction_updated",
-        createdAt: { gte: monthStartUtc(now) },
-      },
-      select: { metadata: true },
-    }),
-  ]);
-
-  const parseAsAiCleanup = (metadata: unknown): { source?: string; estimatedCostCents?: number } | null => {
-    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
-      return null;
-    }
-    const objectMetadata = metadata as Record<string, unknown>;
-    return {
-      source: typeof objectMetadata.source === "string" ? objectMetadata.source : undefined,
-      estimatedCostCents:
-        typeof objectMetadata.estimatedCostCents === "number" ? Math.max(0, Math.round(objectMetadata.estimatedCostCents)) : undefined,
-    };
-  };
-
-  const runsToday = todayLogs
-    .map((entry) => parseAsAiCleanup(entry.metadata))
-    .filter((entry) => entry?.source === "ai_cleanup").length;
-
-  const spentCentsThisMonth = monthLogs
-    .map((entry) => parseAsAiCleanup(entry.metadata))
-    .filter((entry) => entry?.source === "ai_cleanup")
-    .reduce((sum, entry) => sum + (entry?.estimatedCostCents ?? 0), 0);
-
-  return {
-    runsToday,
-    spentCentsThisMonth,
-  };
-}
-
 export async function getBudgetAiPreflight(monthKey: string): Promise<BudgetAiPreflight> {
   const [usage, uncategorizedCount] = await Promise.all([
-    readUsage(new Date()),
+    readBudgetAiUsage(new Date()),
     prisma.budgetTransaction.count({
       where: {
         monthKey,
@@ -153,7 +68,7 @@ export async function getBudgetAiPreflight(monthKey: string): Promise<BudgetAiPr
   const rowsPlanned = Math.min(uncategorizedCount, env.OPENAI_MAX_ROWS_PER_RUN);
   const estimatedInputTokens = rowsPlanned * PROMPT_TOKENS_PER_ROW;
   const estimatedOutputTokens = rowsPlanned * COMPLETION_TOKENS_PER_ROW;
-  const baselineEstimate = estimateCostCents({
+  const baselineEstimate = estimateBudgetAiCostCents({
     model: env.OPENAI_MODEL,
     inputTokens: estimatedInputTokens,
     outputTokens: estimatedOutputTokens,
@@ -386,12 +301,12 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
 
   const estimatedCostCents =
     ai.promptTokens !== null && ai.completionTokens !== null
-      ? estimateCostCents({
+      ? estimateBudgetAiCostCents({
           model: env.OPENAI_MODEL,
           inputTokens: ai.promptTokens,
           outputTokens: ai.completionTokens,
         })
-      : estimateCostCents({
+      : estimateBudgetAiCostCents({
           model: env.OPENAI_MODEL,
           inputTokens: preflight.estimatedInputTokens,
           outputTokens: preflight.estimatedOutputTokens,

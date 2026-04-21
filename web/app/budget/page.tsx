@@ -85,6 +85,10 @@ export default async function BudgetPage({ searchParams }: Props) {
   const costCents = Number(parseStringParam(params.costCents) ?? "0");
   const importedCount = Number(parseStringParam(params.imported) ?? "0");
   const duplicateCount = Number(parseStringParam(params.duplicates) ?? "0");
+  const aiStatus = parseStringParam(params.aiStatus);
+  const aiUpdatedCount = Number(parseStringParam(params.aiUpdated) ?? "0");
+  const aiCostCents = Number(parseStringParam(params.aiCostCents) ?? "0");
+  const aiError = parseStringParam(params.aiError)?.replaceAll("_", " ");
   const hasError = Boolean(errorCode);
   const readableError = errorCode ? errorCode.replaceAll("_", " ") : "";
   const totalFlow = budgetData.overview.incomeCents + budgetData.overview.expensesCents;
@@ -173,7 +177,15 @@ export default async function BudgetPage({ searchParams }: Props) {
           {successCode === "budget_imported" ? (
             <div className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
               CSV imported successfully. Added {Number.isFinite(importedCount) ? importedCount : 0} transactions and skipped{" "}
-              {Number.isFinite(duplicateCount) ? duplicateCount : 0} duplicates. Showing the imported month automatically.
+              {Number.isFinite(duplicateCount) ? duplicateCount : 0} duplicates.{" "}
+              {aiStatus === "completed"
+                ? `AI auto-categorized ${Number.isFinite(aiUpdatedCount) ? aiUpdatedCount : 0} rows (est. cost ${formatCurrency(Number.isFinite(aiCostCents) ? aiCostCents : 0)}).`
+                : aiStatus === "skipped"
+                  ? `AI auto-categorization skipped (${aiError ?? "unknown reason"}).`
+                  : aiStatus === "queued"
+                    ? "AI auto-categorization is queued."
+                    : "AI auto-categorization is disabled."}{" "}
+              Showing the imported month automatically.
             </div>
           ) : null}
 
@@ -383,6 +395,10 @@ export default async function BudgetPage({ searchParams }: Props) {
                   accept=".csv,text/csv"
                   className="rounded-xl border border-slate-600 bg-slate-950/80 px-3 py-2 text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-100 hover:file:bg-slate-700"
                 />
+                <label className="flex items-center gap-2 text-xs text-slate-300">
+                  <input type="checkbox" name="autoCategorize" defaultChecked className="h-4 w-4 accent-cyan-300" />
+                  Auto-categorize uncategorized rows after import using AI
+                </label>
                 <button type="submit" className="rounded-xl bg-gradient-to-r from-cyan-300 to-blue-300 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:brightness-95">
                   Import transactions
                 </button>

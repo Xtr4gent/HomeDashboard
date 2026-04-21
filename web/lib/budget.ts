@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { assertBudgetAiRunAllowed, estimateBudgetAiCostCents } from "@/lib/budget-ai-guardrails";
 import { monthKeyFromDate } from "@/lib/time";
 
 export type ParsedCsvData = {
@@ -32,6 +33,11 @@ type NormalizedImportRow = {
   postedAt: Date;
   description: string;
   amountCents: number;
+};
+
+type AiNormalizationResult = {
+  rows: NormalizedImportRow[];
+  estimatedCostCents: number;
 };
 
 function parseCsvLine(line: string, delimiter: string): string[] {
@@ -161,14 +167,24 @@ function parseAiRows(payload: unknown): Array<{ postedAt: string; description: s
 async function normalizeRowsWithAi(args: {
   headers: string[];
   rows: string[][];
-}): Promise<NormalizedImportRow[]> {
+}): Promise<AiNormalizationResult> {
   const key = aiKey();
   if (!key) {
     throw new Error("CSV headers not recognized and OPENAI_API_KEY is not configured.");
   }
   if (args.rows.length === 0) {
-    return [];
+    return { rows: [], estimatedCostCents: 0 };
   }
+
+  const estimatedInputTokens = args.rows.length * 30;
+  const estimatedOutputTokens = args.rows.length * 18;
+  await assertBudgetAiRunAllowed({
+    estimatedCostCents: estimateBudgetAiCostCents({
+      model: aiModel(),
+      inputTokens: estimatedInputTokens,
+      outputTokens: estimatedOutputTokens,
+    }),
+  });
 
   const chunks: string[][][] = [];
   for (let index = 0; index < args.rows.length; index += 150) {
@@ -176,6 +192,8 @@ async function normalizeRowsWithAi(args: {
   }
 
   const normalized: NormalizedImportRow[] = [];
+  let promptTokens = 0;
+  let completionTokens = 0;
   const preferredModel = aiModel();
   const modelFallbacks = preferredModel === "gpt-4.1-mini" ? [preferredModel] : [preferredModel, "gpt-4.1-mini"];
 
@@ -246,11 +264,14 @@ async function normalizeRowsWithAi(args: {
 
         const payload = (await response.json()) as {
           choices?: Array<{ message?: { content?: string | null } }>;
+          usage?: { prompt_tokens?: number; completion_tokens?: number };
         };
         const content = payload.choices?.[0]?.message?.content;
         if (!content) {
           throw new Error("openai_csv_parse_empty_response");
         }
+        promptTokens += Math.max(0, Math.round(payload.usage?.prompt_tokens ?? 0));
+        completionTokens += Math.max(0, Math.round(payload.usage?.completion_tokens ?? 0));
 
         try {
           parsedJson = JSON.parse(content);
@@ -291,7 +312,14 @@ async function normalizeRowsWithAi(args: {
     }
   }
 
-  return normalized;
+  return {
+    rows: normalized,
+    estimatedCostCents: estimateBudgetAiCostCents({
+      model: preferredModel,
+      inputTokens: promptTokens || estimatedInputTokens,
+      outputTokens: completionTokens || estimatedOutputTokens,
+    }),
+  };
 }
 
 export function parseBudgetAmount(raw: string): number {
@@ -408,6 +436,8 @@ export async function importBudgetCsv(args: {
   const hasStandardColumns = dateIndex >= 0 && descriptionIndex >= 0 && (amountIndex >= 0 || debitIndex >= 0 || creditIndex >= 0);
 
   let normalizedRows: NormalizedImportRow[] = [];
+  let aiNormalizationCostCents = 0;
+  let aiNormalizationUsed = false;
   if (hasStandardColumns) {
     normalizedRows = parsed.rows
       .map((row) => {
@@ -438,10 +468,13 @@ export async function importBudgetCsv(args: {
       })
       .filter((row): row is NormalizedImportRow => row !== null);
   } else {
-    normalizedRows = await normalizeRowsWithAi({
+    const aiNormalization = await normalizeRowsWithAi({
       headers: parsed.headers,
       rows: parsed.rows,
     });
+    normalizedRows = aiNormalization.rows;
+    aiNormalizationCostCents = aiNormalization.estimatedCostCents;
+    aiNormalizationUsed = true;
     if (normalizedRows.length === 0) {
       throw new Error("CSV could not be normalized from this format.");
     }
@@ -535,6 +568,8 @@ export async function importBudgetCsv(args: {
     duplicateCount,
     rowCount: parsed.rows.length,
     importedMonthKey: primaryImportedMonthKey,
+    aiNormalizationUsed,
+    aiNormalizationCostCents,
   };
 }
 
