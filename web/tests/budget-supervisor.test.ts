@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-const getBudgetPageDataMock = vi.fn();
+const ensureSessionCreateMock = vi.fn();
+const sessionUpdateMock = vi.fn();
+const getMonthlySummaryMock = vi.fn();
+const getCashPositionMock = vi.fn();
+const proposeCategorizationMock = vi.fn();
 
 vi.mock("@/lib/env", () => ({
   env: {
@@ -10,27 +14,54 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
-vi.mock("@/lib/budget", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/budget")>("@/lib/budget");
-  return {
-    ...actual,
-    getBudgetPageData: getBudgetPageDataMock,
-  };
-});
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    budgetSupervisorSession: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: ensureSessionCreateMock,
+      update: sessionUpdateMock,
+    },
+  },
+}));
+
+vi.mock("@/lib/budget-supervisor-tools", () => ({
+  getMonthlySummary: getMonthlySummaryMock,
+  getCashPosition: getCashPositionMock,
+  proposeCategorization: proposeCategorizationMock,
+  listUnreviewedImports: vi.fn(),
+  approveCategorizationBatch: vi.fn(),
+}));
 
 describe("budget supervisor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getBudgetPageDataMock.mockResolvedValue({
-      overview: {
-        incomeCents: 500000,
-        expensesCents: 410000,
-        netCents: 90000,
-        transactionCount: 12,
-        uncategorizedCount: 3,
-      },
-      pendingSuggestions: [{ id: "s-1" }, { id: "s-2" }],
-      recurring: [{ merchant: "netflix" }],
+    ensureSessionCreateMock.mockResolvedValue({
+      id: "sess-1",
+    });
+    sessionUpdateMock.mockResolvedValue({ id: "sess-1" });
+    getMonthlySummaryMock.mockResolvedValue({
+      toolName: "get_monthly_summary",
+      summary: "Monthly summary.",
+      assumptions: ["a1"],
+      proposedActions: ["p1"],
+      confidence: "high",
+      sourceOfTruthUsed: ["budget_transaction"],
+    });
+    getCashPositionMock.mockResolvedValue({
+      toolName: "get_cash_position",
+      summary: "Cash outlook summary.",
+      assumptions: ["a1", "a2"],
+      proposedActions: ["p1"],
+      confidence: "medium",
+      sourceOfTruthUsed: ["budget_transaction"],
+    });
+    proposeCategorizationMock.mockResolvedValue({
+      toolName: "propose_categorization",
+      summary: "Review unknown merchants.",
+      assumptions: ["a1"],
+      proposedActions: ["p1"],
+      confidence: "medium",
+      sourceOfTruthUsed: ["budget_ai_suggestion"],
     });
   });
 
@@ -39,8 +70,11 @@ describe("budget supervisor", () => {
     const result = await runBudgetSupervisorTask({
       monthKey: "2026-04",
       request: "show me unknown merchants to review",
+      actorUsername: "gabe",
     });
     expect(result.intent).toBe("unknown_merchants_review");
+    expect(result.sessionId).toBe("sess-1");
+    expect(result.toolName).toBe("propose_categorization");
     expect(result.proposedActions.length).toBeGreaterThan(0);
   });
 
@@ -49,8 +83,10 @@ describe("budget supervisor", () => {
     const result = await runBudgetSupervisorTask({
       monthKey: "2026-04",
       request: "what is our cash outlook until payday?",
+      actorUsername: "gabe",
     });
     expect(result.intent).toBe("cash_outlook");
+    expect(result.toolName).toBe("get_cash_position");
     expect(result.assumptions.length).toBeGreaterThan(0);
   });
 });

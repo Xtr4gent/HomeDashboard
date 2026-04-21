@@ -506,6 +506,7 @@ export async function importBudgetCsv(args: {
   institution?: string;
   monthKey: string;
   sourceFilename?: string;
+  sourceChecksum?: string;
   csvContent: string;
 }) {
   const parsed = parseCsv(args.csvContent);
@@ -603,13 +604,21 @@ export async function importBudgetCsv(args: {
       status: "queued",
       rowCount: parsed.rows.length,
       sourceFilename: args.sourceFilename?.trim() || null,
+      sourceChecksum: args.sourceChecksum?.trim() || null,
       sourceUploadedAt: new Date(),
       parserVersion: "budget-parser-v1",
-      parseStatus: "completed",
+      parseStatus: "uploaded",
       cleanedRowCount: cleanedRows.length,
       aiNormalizationUsed,
       aiNormalizationCostCents,
       cleanedRowsJson: cleanedRows,
+    },
+  });
+
+  await prisma.budgetImportBatch.update({
+    where: { id: batch.id },
+    data: {
+      parseStatus: "parsed",
     },
   });
 
@@ -658,6 +667,13 @@ export async function importBudgetCsv(args: {
     importedCount += 1;
   }
 
+  await prisma.budgetImportBatch.update({
+    where: { id: batch.id },
+    data: {
+      parseStatus: "normalized",
+    },
+  });
+
   const primaryImportedMonthKey =
     [...observedMonthCounts.entries()].sort((a, b) => b[1] - a[1]).at(0)?.[0] ??
     [...importedMonthCounts.entries()].sort((a, b) => b[1] - a[1]).at(0)?.[0] ??
@@ -670,9 +686,10 @@ export async function importBudgetCsv(args: {
       importedCount,
       duplicateCount,
       sourceFilename: args.sourceFilename?.trim() || null,
+      sourceChecksum: args.sourceChecksum?.trim() || null,
       sourceUploadedAt: new Date(),
       parserVersion: "budget-parser-v1",
-      parseStatus: "completed",
+      parseStatus: "ready_for_review",
       cleanedRowCount: cleanedRows.length,
       aiNormalizationUsed,
       aiNormalizationCostCents,

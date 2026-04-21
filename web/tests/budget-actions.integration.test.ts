@@ -101,11 +101,24 @@ describe("budget actions", () => {
       estimatedCostCents: 2,
     });
     runBudgetSupervisorTaskMock.mockResolvedValue({
+      sessionId: "sup-session-1",
       intent: "monthly_summary",
       title: "Monthly supervised summary",
       summary: "Your month is stable but review queue remains.",
       assumptions: ["Coverage is 80%."],
       proposedActions: ["Review pending queue"],
+      toolName: "get_monthly_summary",
+      sourceOfTruthUsed: ["budget_transaction"],
+      rubric: {
+        dataFidelity: 2,
+        scopeDiscipline: 2,
+        explainability: 2,
+        approvalSafety: 2,
+        uncertaintyHandling: 2,
+        costDiscipline: 2,
+        total: 12,
+        pass: true,
+      },
     });
     budgetAiSuggestionFindUniqueMock.mockResolvedValue({
       id: "sug-1",
@@ -290,11 +303,13 @@ describe("budget actions", () => {
     formData.set("request", "what changed this month?");
 
     await expect(runBudgetSupervisorAction(formData)).rejects.toThrow(
-      "REDIRECT:/budget?month=2026-04&tab=review&success=supervisor_done&supIntent=monthly_summary&supTitle=Monthly%20supervised%20summary&supSummary=Your%20month%20is%20stable%20but%20review%20queue%20remains.",
+      "REDIRECT:/budget?month=2026-04&tab=review&success=supervisor_done&supIntent=monthly_summary&supTitle=Monthly%20supervised%20summary&supSummary=Your%20month%20is%20stable%20but%20review%20queue%20remains.&supSessionId=sup-session-1",
     );
     expect(runBudgetSupervisorTaskMock).toHaveBeenCalledWith({
       monthKey: "2026-04",
       request: "what changed this month?",
+      actorUsername: "Gabe",
+      sessionId: undefined,
     });
   });
 });

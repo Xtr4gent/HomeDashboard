@@ -1,6 +1,7 @@
 "use server";
 
 import { Prisma } from "@prisma/client";
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -107,6 +108,7 @@ const cleanBudgetDataWithAiSchema = z.object({
 const runBudgetSupervisorSchema = z.object({
   monthKey: z.string().min(1),
   request: z.string().min(1).max(800),
+  sessionId: z.string().min(1).optional(),
 });
 
 const reviewBudgetAiSuggestionSchema = z.object({
@@ -1138,6 +1140,7 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
 
   const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
   const csvContent = await csvFile.text();
+  const sourceChecksum = createHash("sha256").update(csvContent).digest("hex");
   let importRedirectMonthKey = monthKey;
   let importRedirectSuccess = "";
   let importRedirectImported = "0";
@@ -1153,6 +1156,7 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
       institution: parsed.data.institution,
       monthKey,
       sourceFilename: csvFile.name,
+      sourceChecksum,
       csvContent,
     });
     importRedirectMonthKey = result.importedMonthKey || monthKey;
@@ -1173,6 +1177,8 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
         duplicateCount: result.duplicateCount,
         aiNormalizationUsed: result.aiNormalizationUsed,
         aiNormalizationCostCents: result.aiNormalizationCostCents,
+        sourceFilename: csvFile.name,
+        sourceChecksum,
       },
     });
     if (parsed.data.autoCategorize) {
@@ -1207,6 +1213,7 @@ export async function runBudgetSupervisorAction(formData: FormData): Promise<voi
   const parsed = runBudgetSupervisorSchema.safeParse({
     monthKey: String(formData.get("monthKey") ?? ""),
     request: String(formData.get("request") ?? "").trim(),
+    sessionId: String(formData.get("sessionId") ?? "").trim() || undefined,
   });
   if (!parsed.success) {
     redirect("/budget?tab=review&error=invalid_supervisor_request");
@@ -1215,6 +1222,8 @@ export async function runBudgetSupervisorAction(formData: FormData): Promise<voi
   const result = await runBudgetSupervisorTask({
     monthKey,
     request: parsed.data.request,
+    actorUsername: session.username,
+    sessionId: parsed.data.sessionId,
   });
 
   await logActivity({
@@ -1226,12 +1235,16 @@ export async function runBudgetSupervisorAction(formData: FormData): Promise<voi
     metadata: {
       request: parsed.data.request.slice(0, 240),
       intent: result.intent,
+      toolName: result.toolName,
+      sessionId: result.sessionId,
       proposedActionsCount: result.proposedActions.length,
+      sourceOfTruthUsed: result.sourceOfTruthUsed,
+      rubric: result.rubric,
     },
   });
   revalidatePath("/budget");
   redirect(
-    `/budget?month=${encodeURIComponent(monthKey)}&tab=review&success=supervisor_done&supIntent=${encodeURIComponent(result.intent)}&supTitle=${encodeURIComponent(result.title)}&supSummary=${encodeURIComponent(result.summary)}`,
+    `/budget?month=${encodeURIComponent(monthKey)}&tab=review&success=supervisor_done&supIntent=${encodeURIComponent(result.intent)}&supTitle=${encodeURIComponent(result.title)}&supSummary=${encodeURIComponent(result.summary)}&supSessionId=${encodeURIComponent(result.sessionId)}`,
   );
 }
 

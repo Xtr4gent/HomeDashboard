@@ -75,6 +75,10 @@ enum BudgetAiSuggestionStatus {
 }
 
 enum BudgetParseStatus {
+  uploaded
+  parsed
+  normalized
+  ready_for_review
   completed
   partial
   failed
@@ -374,6 +378,7 @@ model BudgetImportBatch {
   importedCount  Int              @default(0)
   duplicateCount Int              @default(0)
   sourceFilename String?
+  sourceChecksum String?
   sourceUploadedAt DateTime?
   parserVersion  String?
   parseStatus    BudgetParseStatus @default(completed)
@@ -387,6 +392,19 @@ model BudgetImportBatch {
   transactions   BudgetTransaction[]
 
   @@index([monthKey, createdAt])
+}
+
+model BudgetSupervisorSession {
+  id                 String   @id @default(cuid())
+  actorUsername      String
+  monthKey           String
+  lastUserMessage    String?
+  lastAssistantReply String?
+  historyJson        Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([actorUsername, monthKey, updatedAt])
 }
 
 model BudgetTransaction {

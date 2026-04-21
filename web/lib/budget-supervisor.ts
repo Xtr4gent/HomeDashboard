@@ -1,19 +1,42 @@
 import { env } from "@/lib/env";
-import { calculateDeterministicCashOutlook, calculateMonthCoverage, getBudgetPageData } from "@/lib/budget";
+import { prisma } from "@/lib/prisma";
+import {
+  approveCategorizationBatch,
+  compareDebtPaydownVsInvesting,
+  getCashPosition,
+  getMonthlySummary,
+  listUnreviewedImports,
+  proposeCategorization,
+  type SupervisorToolResult,
+} from "@/lib/budget-supervisor-tools";
 
 type SupervisorIntent =
   | "monthly_summary"
   | "unknown_merchants_review"
   | "cash_outlook"
+  | "debt_advice"
   | "subscriptions_review"
   | "change_preview";
 
 export type SupervisorResult = {
+  sessionId: string;
   intent: SupervisorIntent;
   title: string;
   summary: string;
   assumptions: string[];
   proposedActions: string[];
+  toolName: string;
+  sourceOfTruthUsed: string[];
+  rubric: {
+    dataFidelity: 0 | 1 | 2;
+    scopeDiscipline: 0 | 1 | 2;
+    explainability: 0 | 1 | 2;
+    approvalSafety: 0 | 1 | 2;
+    uncertaintyHandling: 0 | 1 | 2;
+    costDiscipline: 0 | 1 | 2;
+    total: number;
+    pass: boolean;
+  };
 };
 
 function maskSensitiveText(raw: string): string {
@@ -27,6 +50,9 @@ function detectIntentDeterministically(request: string): SupervisorIntent {
   }
   if (normalized.includes("cash") || normalized.includes("payday") || normalized.includes("outlook")) {
     return "cash_outlook";
+  }
+  if (normalized.includes("debt") || normalized.includes("apr") || normalized.includes("invest")) {
+    return "debt_advice";
   }
   if (normalized.includes("subscription") || normalized.includes("recurring")) {
     return "subscriptions_review";
@@ -55,7 +81,7 @@ async function detectIntentWithRouterModel(request: string): Promise<SupervisorI
         {
           role: "system",
           content:
-            "Classify intent for a supervised household finance assistant. Return JSON with {\"intent\": \"monthly_summary|unknown_merchants_review|cash_outlook|subscriptions_review|change_preview\"}.",
+            "Classify intent for a supervised household finance assistant. Return JSON with {\"intent\": \"monthly_summary|unknown_merchants_review|cash_outlook|debt_advice|subscriptions_review|change_preview\"}.",
         },
         {
           role: "user",
@@ -81,6 +107,7 @@ async function detectIntentWithRouterModel(request: string): Promise<SupervisorI
       candidate === "monthly_summary" ||
       candidate === "unknown_merchants_review" ||
       candidate === "cash_outlook" ||
+      candidate === "debt_advice" ||
       candidate === "subscriptions_review" ||
       candidate === "change_preview"
     ) {
@@ -147,126 +174,120 @@ async function maybeRenderNaturalSummary(args: {
   }
 }
 
+async function ensureSession(args: {
+  sessionId?: string;
+  actorUsername: string;
+  monthKey: string;
+}): Promise<{ id: string; history: Array<{ role: "user" | "assistant"; content: string }> }> {
+  const existing = args.sessionId
+    ? await prisma.budgetSupervisorSession.findUnique({
+        where: { id: args.sessionId },
+      })
+    : null;
+  if (existing && existing.actorUsername === args.actorUsername && existing.monthKey === args.monthKey) {
+    const history = Array.isArray(existing.historyJson) ? (existing.historyJson as Array<{ role: "user" | "assistant"; content: string }>) : [];
+    return { id: existing.id, history };
+  }
+  const created = await prisma.budgetSupervisorSession.create({
+    data: {
+      actorUsername: args.actorUsername,
+      monthKey: args.monthKey,
+      historyJson: [],
+    },
+  });
+  return { id: created.id, history: [] };
+}
+
+function scoreRubric(args: { confidence: "high" | "medium" | "low"; assumptionsCount: number }) {
+  const dataFidelity: 0 | 1 | 2 = args.confidence === "low" ? 1 : 2;
+  const scopeDiscipline: 0 | 1 | 2 = 2;
+  const explainability: 0 | 1 | 2 = args.assumptionsCount > 0 ? 2 : 1;
+  const approvalSafety: 0 | 1 | 2 = 2;
+  const uncertaintyHandling: 0 | 1 | 2 = args.assumptionsCount > 0 ? 2 : 1;
+  const costDiscipline: 0 | 1 | 2 = 2;
+  const total =
+    dataFidelity +
+    scopeDiscipline +
+    explainability +
+    approvalSafety +
+    uncertaintyHandling +
+    costDiscipline;
+  return {
+    dataFidelity,
+    scopeDiscipline,
+    explainability,
+    approvalSafety,
+    uncertaintyHandling,
+    costDiscipline,
+    total,
+    pass: total >= 10 && dataFidelity >= 2 && approvalSafety >= 2,
+  };
+}
+
 export async function runBudgetSupervisorTask(args: {
   monthKey: string;
   request: string;
+  actorUsername: string;
+  sessionId?: string;
 }): Promise<SupervisorResult> {
-  const budgetData = await getBudgetPageData(args.monthKey);
+  const session = await ensureSession({
+    sessionId: args.sessionId,
+    actorUsername: args.actorUsername,
+    monthKey: args.monthKey,
+  });
   const fallbackIntent = detectIntentDeterministically(args.request);
   const modelIntent = await detectIntentWithRouterModel(args.request).catch(() => null);
   const intent = modelIntent ?? fallbackIntent;
 
-  const baseCoverage = calculateMonthCoverage({
-    transactionCount: budgetData.overview.transactionCount,
-    uncategorizedCount: budgetData.overview.uncategorizedCount,
-  });
-  const cashOutlook = calculateDeterministicCashOutlook({
-    monthKey: args.monthKey,
-    incomeCents: budgetData.overview.incomeCents,
-    expensesCents: budgetData.overview.expensesCents,
-  });
-
+  let toolResult: SupervisorToolResult;
+  let title = "Monthly supervised summary";
   if (intent === "unknown_merchants_review") {
-    const deterministicSummary = `${budgetData.pendingSuggestions.length} pending review items and ${budgetData.overview.uncategorizedCount} uncategorized transactions are waiting for manual approval.`;
-    return {
-      intent,
-      title: "Review unknown merchants",
-      summary: await maybeRenderNaturalSummary({
-        intent,
-        deterministicSummary,
-        assumptions: [
-          `Coverage is ${baseCoverage}% for ${args.monthKey}.`,
-          "No category changes are applied automatically.",
-        ],
-      }),
-      assumptions: [`Coverage is ${baseCoverage}% for ${args.monthKey}.`, "No category changes are applied automatically."],
-      proposedActions: [
-        "Open Review tab and approve high-confidence category suggestions first.",
-        "Dismiss uncertain suggestions lacking clear merchant evidence.",
-      ],
-    };
+    toolResult = await proposeCategorization(args.monthKey);
+    title = "Review unknown merchants";
+  } else if (intent === "cash_outlook") {
+    toolResult = await getCashPosition(args.monthKey);
+    title = "Cash outlook";
+  } else if (intent === "debt_advice") {
+    toolResult = await compareDebtPaydownVsInvesting(args.monthKey);
+    title = "Debt and APR guidance";
+  } else if (intent === "subscriptions_review") {
+    toolResult = await listUnreviewedImports(args.monthKey);
+    title = "Subscription and recurring review";
+  } else if (intent === "change_preview") {
+    toolResult = await approveCategorizationBatch(args.monthKey);
+    title = "Pending change preview";
+  } else {
+    toolResult = await getMonthlySummary(args.monthKey);
   }
 
-  if (intent === "cash_outlook") {
-    const deterministicSummary = `Known net for ${args.monthKey} is ${(cashOutlook.knownNetCents / 100).toFixed(2)} CAD, projected month-end net is ${(cashOutlook.projectedMonthEndNetCents / 100).toFixed(2)} CAD.`;
-    return {
-      intent,
-      title: "Cash outlook",
-      summary: await maybeRenderNaturalSummary({
-        intent,
-        deterministicSummary,
-        assumptions: cashOutlook.assumptions,
-      }),
-      assumptions: cashOutlook.assumptions,
-      proposedActions: [
-        "Review any large uncategorized expenses before acting on projection.",
-        "Re-run after latest account CSV uploads for better confidence.",
-      ],
-    };
-  }
+  const summary = await maybeRenderNaturalSummary({
+    intent,
+    deterministicSummary: toolResult.summary,
+    assumptions: toolResult.assumptions,
+  });
+  const rubric = scoreRubric({
+    confidence: toolResult.confidence,
+    assumptionsCount: toolResult.assumptions.length,
+  });
+  const history = [...session.history, { role: "user", content: args.request }, { role: "assistant", content: summary }].slice(-20);
+  await prisma.budgetSupervisorSession.update({
+    where: { id: session.id },
+    data: {
+      lastUserMessage: args.request.slice(0, 800),
+      lastAssistantReply: summary.slice(0, 2400),
+      historyJson: history,
+    },
+  });
 
-  if (intent === "subscriptions_review") {
-    const recurringCount = budgetData.recurring.length;
-    const deterministicSummary = `Detected ${recurringCount} recurring spending signals. These are patterns, not confirmed subscriptions.`;
-    return {
-      intent,
-      title: "Subscription and recurring review",
-      summary: await maybeRenderNaturalSummary({
-        intent,
-        deterministicSummary,
-        assumptions: [
-          "Recurring detection uses deterministic interval heuristics from imported history.",
-          "Confirmation still requires manual review.",
-        ],
-      }),
-      assumptions: [
-        "Recurring detection uses deterministic interval heuristics from imported history.",
-        "Confirmation still requires manual review.",
-      ],
-      proposedActions: [
-        "Inspect recurring list and confirm only services with clear merchant consistency.",
-        "Flag uncertain merchants for manual follow-up before creating rules.",
-      ],
-    };
-  }
-
-  if (intent === "change_preview") {
-    const deterministicSummary = `${budgetData.pendingSuggestions.length} pending proposals are available. No permanent edits happen until you approve each item.`;
-    return {
-      intent,
-      title: "Pending change preview",
-      summary: await maybeRenderNaturalSummary({
-        intent,
-        deterministicSummary,
-        assumptions: ["Approval gateway is enforced on all suggested ledger mutations."],
-      }),
-      assumptions: ["Approval gateway is enforced on all suggested ledger mutations."],
-      proposedActions: [
-        "Approve proposals one by one in Review tab.",
-        "Use dismissed status for suggestions that do not match source evidence.",
-      ],
-    };
-  }
-
-  const deterministicSummary = `For ${args.monthKey}: income ${(budgetData.overview.incomeCents / 100).toFixed(2)} CAD, expenses ${(budgetData.overview.expensesCents / 100).toFixed(2)} CAD, net ${(budgetData.overview.netCents / 100).toFixed(2)} CAD, coverage ${baseCoverage}%.`;
   return {
-    intent: "monthly_summary",
-    title: "Monthly supervised summary",
-    summary: await maybeRenderNaturalSummary({
-      intent: "monthly_summary",
-      deterministicSummary,
-      assumptions: [
-        `${budgetData.overview.uncategorizedCount} transactions remain uncategorized.`,
-        `${budgetData.pendingSuggestions.length} proposals remain pending approval.`,
-      ],
-    }),
-    assumptions: [
-      `${budgetData.overview.uncategorizedCount} transactions remain uncategorized.`,
-      `${budgetData.pendingSuggestions.length} proposals remain pending approval.`,
-    ],
-    proposedActions: [
-      "Clear review queue to improve summary confidence.",
-      "Re-import missing account CSV files if this month is incomplete.",
-    ],
+    sessionId: session.id,
+    intent,
+    title,
+    summary,
+    assumptions: toolResult.assumptions,
+    proposedActions: toolResult.proposedActions,
+    toolName: toolResult.toolName,
+    sourceOfTruthUsed: toolResult.sourceOfTruthUsed,
+    rubric,
   };
 }

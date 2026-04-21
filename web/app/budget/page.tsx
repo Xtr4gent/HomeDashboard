@@ -103,6 +103,7 @@ export default async function BudgetPage({ searchParams }: Props) {
   const supervisorIntent = parseStringParam(params.supIntent);
   const supervisorTitle = parseStringParam(params.supTitle);
   const supervisorSummary = parseStringParam(params.supSummary);
+  const supervisorSessionId = parseStringParam(params.supSessionId);
   const selectedCleanedBatchId = parseStringParam(params.cleanedBatch);
   const hasError = Boolean(errorCode);
   const readableError = errorCode ? errorCode.replaceAll("_", " ") : "";
@@ -500,6 +501,7 @@ export default async function BudgetPage({ searchParams }: Props) {
               <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Supervisor</p>
               <form action={runBudgetSupervisorAction} className="mt-2 grid gap-2">
                 <input type="hidden" name="monthKey" value={monthKey} />
+                <input type="hidden" name="sessionId" value={supervisorSessionId ?? ""} />
                 <textarea
                   name="request"
                   required
