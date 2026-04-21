@@ -100,6 +100,53 @@ function detectDelimiter(headerLine: string): string {
   return winner;
 }
 
+const HEADER_HINT_ALIASES = [
+  "date",
+  "transactiondate",
+  "posteddate",
+  "description",
+  "details",
+  "memo",
+  "payee",
+  "merchant",
+  "amount",
+  "value",
+  "debit",
+  "credit",
+  "withdrawal",
+  "deposit",
+  "activity",
+];
+
+function findHeaderLineIndex(lines: string[]): { index: number; delimiter: string } {
+  let bestIndex = 0;
+  let bestDelimiter = detectDelimiter(lines[0] ?? ",");
+  let bestScore = -1;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const delimiter = detectDelimiter(line);
+    const cells = parseCsvLine(line, delimiter);
+    if (cells.length < 3) {
+      continue;
+    }
+    const aliasHits = cells.reduce((sum, cell) => {
+      const normalized = normalizeHeaderKey(cell);
+      const hit = HEADER_HINT_ALIASES.some((alias) => normalized.includes(alias));
+      return sum + (hit ? 1 : 0);
+    }, 0);
+    if (aliasHits < 2) {
+      continue;
+    }
+    const score = aliasHits * 10 + cells.length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+      bestDelimiter = delimiter;
+    }
+  }
+  return { index: bestIndex, delimiter: bestDelimiter };
+}
+
 export function parseCsv(content: string): ParsedCsvData {
   const lines = content
     .split(/\r?\n/)
@@ -108,9 +155,9 @@ export function parseCsv(content: string): ParsedCsvData {
   if (lines.length === 0) {
     return { headers: [], rows: [] };
   }
-  const delimiter = detectDelimiter(lines[0]);
-  const headers = parseCsvLine(lines[0], delimiter).map((header) => header.toLowerCase());
-  const rows = lines.slice(1).map((line) => parseCsvLine(line, delimiter));
+  const headerLine = findHeaderLineIndex(lines);
+  const headers = parseCsvLine(lines[headerLine.index], headerLine.delimiter).map((header) => header.toLowerCase());
+  const rows = lines.slice(headerLine.index + 1).map((line) => parseCsvLine(line, headerLine.delimiter));
   return { headers, rows };
 }
 

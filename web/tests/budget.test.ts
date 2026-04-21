@@ -23,6 +23,32 @@ describe("budget helpers", () => {
     expect(parsed.rows[0]).toEqual(["2026-04-01", "Coffee", "4.75", ""]);
   });
 
+  test("detects header row after export preamble lines", () => {
+    const parsed = parseCsv(
+      [
+        '"Activity Export as of Nov 3, 2025 at 11:08:03 am ET"',
+        '"Account: 20604132 - FHSA"',
+        '"Date","Activity","Symbol","Symbol Description","Quantity","Price","Settlement Date","Account","Value","Currency","Description"',
+        '"October 22, 2025","Buy","RANI","RANI THERAPEUTICS","60","3.56","October 23, 2025","20604132","-223.55","USD","RANI THERAPEUTICS"',
+      ].join("\n"),
+    );
+    expect(parsed.headers).toEqual([
+      "date",
+      "activity",
+      "symbol",
+      "symbol description",
+      "quantity",
+      "price",
+      "settlement date",
+      "account",
+      "value",
+      "currency",
+      "description",
+    ]);
+    expect(parsed.rows[0][0]).toBe("October 22, 2025");
+    expect(parsed.rows[0][8]).toBe("-223.55");
+  });
+
   test("normalizes merchant name for deterministic dedupe", () => {
     expect(normalizeMerchantName("  Uber*Trip #1234  ")).toBe("uber trip 1234");
   });
