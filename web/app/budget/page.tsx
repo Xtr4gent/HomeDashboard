@@ -355,6 +355,16 @@ export default async function BudgetPage({ searchParams }: Props) {
         {tab === "budgets" ? (
           <section className="rounded-2xl border border-slate-700/70 bg-slate-900/75 p-4 sm:p-6">
             <h2 className="text-lg font-semibold text-slate-100">Category budgets</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              This is your category spend breakdown for {monthKey}. Set a target to track over/under.
+            </p>
+            <div className="mt-3 grid grid-cols-4 gap-2 rounded-xl border border-slate-700/80 bg-slate-950/50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 sm:grid-cols-5">
+              <span>Category</span>
+              <span>Spent</span>
+              <span>Variance</span>
+              <span className="sm:col-span-1">Target</span>
+              <span className="hidden sm:block">Action</span>
+            </div>
             <div className="mt-3 space-y-2">
               {budgetData.budgets.map((budget) => (
                 <form
@@ -378,6 +388,11 @@ export default async function BudgetPage({ searchParams }: Props) {
                 </form>
               ))}
             </div>
+            {budgetData.budgets.length === 0 ? (
+              <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/65 p-3">
+                <p className="text-sm text-slate-300">No category spend yet for this month. Import a CSV in Accounts tab first.</p>
+              </div>
+            ) : null}
             {budgetData.categoriesWithoutTargets.length > 0 ? (
               <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/65 p-3">
                 <p className="text-sm text-slate-300">

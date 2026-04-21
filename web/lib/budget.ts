@@ -444,9 +444,15 @@ function toTitleCase(raw: string): string {
 }
 
 export function toReadableTransactionName(args: { normalizedMerchant: string; description: string }): string {
-  const merchant = args.normalizedMerchant.trim();
+  const merchant = args.normalizedMerchant
+    .trim()
+    .toLowerCase()
+    .replace(/\b(pos|debit|credit|purchase|payment|online|store|terminal)\b/g, " ")
+    .replace(/\b\d{3,}\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   if (merchant) {
-    return toTitleCase(merchant).slice(0, 64);
+    return toTitleCase(merchant).slice(0, 48);
   }
   const cleaned = args.description
     .toLowerCase()
@@ -852,12 +858,20 @@ export async function getBudgetPageData(monthKey: string) {
     categoryActuals.set(transaction.category, current + Math.abs(transaction.amountCents));
   }
 
-  const budgets = targets.map((target) => ({
-    category: target.category,
-    targetCents: target.targetCents,
-    actualCents: categoryActuals.get(target.category) ?? 0,
-    varianceCents: (categoryActuals.get(target.category) ?? 0) - target.targetCents,
-  }));
+  const categories = new Set<string>([...targets.map((target) => target.category), ...categoryActuals.keys()]);
+  const budgets = [...categories]
+    .sort((a, b) => a.localeCompare(b))
+    .map((category) => {
+      const target = targets.find((row) => row.category === category);
+      const targetCents = target?.targetCents ?? 0;
+      const actualCents = categoryActuals.get(category) ?? 0;
+      return {
+        category,
+        targetCents,
+        actualCents,
+        varianceCents: actualCents - targetCents,
+      };
+    });
 
   const merchantGroups = new Map<string, Date[]>();
   const merchantAmounts = new Map<string, number[]>();

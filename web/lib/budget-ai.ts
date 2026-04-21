@@ -65,6 +65,19 @@ function toRuleMatchText(rawMerchant: string): string {
     .slice(0, 60);
 }
 
+function toFriendlyMerchantLabel(raw: string): string {
+  const cleaned = normalizeMerchantName(raw)
+    .replace(/\b(pos|debit|credit|purchase|payment|auth|online|store|location|terminal|merchant)\b/g, " ")
+    .replace(/\b\d{3,}\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) {
+    return "";
+  }
+  const trimmedWords = cleaned.split(" ").filter(Boolean).slice(0, 4);
+  return trimmedWords.join(" ").slice(0, 48);
+}
+
 export async function getBudgetAiPreflight(monthKey: string): Promise<BudgetAiPreflight> {
   const [usage, uncategorizedCount] = await Promise.all([
     readBudgetAiUsage(new Date()),
@@ -110,6 +123,7 @@ function buildSystemPrompt(): string {
     "Prefer existing categories such as groceries, utilities, housing, transport, dining, shopping, subscriptions, healthcare, uncategorized.",
     "Keep categories concise and lowercase.",
     "Keep normalizedMerchant lowercase and cleaned (letters, numbers, spaces).",
+    "normalizedMerchant must be a friendly display label with 2 to 4 words when possible, no IDs, no terminal codes, no card fragments.",
   ].join(" ");
 }
 
@@ -284,7 +298,7 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
         continue;
       }
       const sanitizedCategory = sanitizeCategory(suggestion.category);
-      const sanitizedMerchant = normalizeMerchantName(suggestion.normalizedMerchant);
+      const sanitizedMerchant = toFriendlyMerchantLabel(suggestion.normalizedMerchant);
       if (!sanitizedCategory || !sanitizedMerchant) {
         skippedRows += 1;
         continue;

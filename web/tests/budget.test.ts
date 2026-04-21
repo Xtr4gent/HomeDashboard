@@ -73,7 +73,7 @@ describe("budget helpers", () => {
         normalizedMerchant: "tim hortons 1234",
         description: "TIM HORTONS #1234 TORONTO",
       }),
-    ).toBe("Tim Hortons 1234");
+    ).toBe("Tim Hortons");
     expect(
       toReadableTransactionName({
         normalizedMerchant: "",
