@@ -81,6 +81,8 @@ export default async function BudgetPage({ searchParams }: Props) {
   const successCode = parseStringParam(params.success);
   const updatedCount = Number(parseStringParam(params.updated) ?? "0");
   const costCents = Number(parseStringParam(params.costCents) ?? "0");
+  const importedCount = Number(parseStringParam(params.imported) ?? "0");
+  const duplicateCount = Number(parseStringParam(params.duplicates) ?? "0");
   const hasError = Boolean(errorCode);
   const readableError = errorCode ? errorCode.replaceAll("_", " ") : "";
   const totalFlow = budgetData.overview.incomeCents + budgetData.overview.expensesCents;
@@ -164,6 +166,12 @@ export default async function BudgetPage({ searchParams }: Props) {
             <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
               AI cleanup completed. Updated {Number.isFinite(updatedCount) ? updatedCount : 0} transactions. Estimated cost{" "}
               {formatCurrency(Number.isFinite(costCents) ? costCents : 0)}.
+            </div>
+          ) : null}
+          {successCode === "budget_imported" ? (
+            <div className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+              CSV imported successfully. Added {Number.isFinite(importedCount) ? importedCount : 0} transactions and skipped{" "}
+              {Number.isFinite(duplicateCount) ? duplicateCount : 0} duplicates. Showing the imported month automatically.
             </div>
           ) : null}
 

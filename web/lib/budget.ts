@@ -476,6 +476,7 @@ export async function importBudgetCsv(args: {
 
   let importedCount = 0;
   let duplicateCount = 0;
+  const importedMonthCounts = new Map<string, number>();
   for (const row of normalizedRows) {
     const postedAt = row.postedAt;
     const description = row.description;
@@ -510,6 +511,8 @@ export async function importBudgetCsv(args: {
         },
       });
     });
+    const importedMonthKey = monthKeyFromDate(postedAt);
+    importedMonthCounts.set(importedMonthKey, (importedMonthCounts.get(importedMonthKey) ?? 0) + 1);
     importedCount += 1;
   }
 
@@ -522,11 +525,15 @@ export async function importBudgetCsv(args: {
     },
   });
 
+  const primaryImportedMonthKey =
+    [...importedMonthCounts.entries()].sort((a, b) => b[1] - a[1]).at(0)?.[0] ?? monthKeyFromDate(new Date());
+
   return {
     batchId: batch.id,
     importedCount,
     duplicateCount,
     rowCount: parsed.rows.length,
+    importedMonthKey: primaryImportedMonthKey,
   };
 }
 

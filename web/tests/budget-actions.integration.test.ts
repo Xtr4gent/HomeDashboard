@@ -64,6 +64,7 @@ describe("budget actions", () => {
       importedCount: 2,
       duplicateCount: 1,
       rowCount: 3,
+      importedMonthKey: "2025-10",
     });
     cleanBudgetDataWithAiMock.mockResolvedValue({
       scannedRows: 12,
@@ -111,6 +112,20 @@ describe("budget actions", () => {
     await expect(importBudgetCsvAction(formData)).rejects.toThrow(
       "REDIRECT:/budget?month=2026-04&tab=accounts&error=missing_csv_file",
     );
+  });
+
+  test("importBudgetCsvAction redirects to imported month with success metadata", async () => {
+    const { importBudgetCsvAction } = await import("@/app/actions");
+    const formData = new FormData();
+    formData.set("accountName", "Joint");
+    formData.set("monthKey", "2026-04");
+    formData.set("csvFile", new File(["date,description,amount\n2025-10-22,RANI,-223.55"], "sample.csv", { type: "text/csv" }));
+
+    await expect(importBudgetCsvAction(formData)).rejects.toThrow(
+      "REDIRECT:/budget?month=2025-10&tab=transactions&success=budget_imported&imported=2&duplicates=1",
+    );
+    expect(importBudgetCsvMock).toHaveBeenCalled();
+    expect(revalidatePathMock).toHaveBeenCalledWith("/budget");
   });
 
   test("cleanBudgetDataWithAiAction redirects with success metadata", async () => {

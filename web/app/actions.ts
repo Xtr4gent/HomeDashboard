@@ -1092,6 +1092,10 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
 
   const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
   const csvContent = await csvFile.text();
+  let importRedirectMonthKey = monthKey;
+  let importRedirectSuccess = "";
+  let importRedirectImported = "0";
+  let importRedirectDuplicates = "0";
   try {
     const result = await importBudgetCsv({
       accountName: parsed.data.accountName,
@@ -1099,6 +1103,10 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
       monthKey,
       csvContent,
     });
+    importRedirectMonthKey = result.importedMonthKey || monthKey;
+    importRedirectSuccess = "budget_imported";
+    importRedirectImported = String(result.importedCount);
+    importRedirectDuplicates = String(result.duplicateCount);
     await logActivity({
       action: "budget_imported",
       actorUsername: session.username,
@@ -1117,6 +1125,9 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/budget");
+  redirect(
+    `/budget?month=${encodeURIComponent(importRedirectMonthKey)}&tab=transactions&success=${importRedirectSuccess}&imported=${importRedirectImported}&duplicates=${importRedirectDuplicates}`,
+  );
 }
 
 export async function saveBudgetTargetAction(formData: FormData): Promise<void> {
