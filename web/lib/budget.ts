@@ -176,79 +176,101 @@ async function normalizeRowsWithAi(args: {
   }
 
   const normalized: NormalizedImportRow[] = [];
+  const preferredModel = aiModel();
+  const modelFallbacks = preferredModel === "gpt-4.1-mini" ? [preferredModel] : [preferredModel, "gpt-4.1-mini"];
+
   for (const chunk of chunks) {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: aiModel(),
-        temperature: 0,
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "normalized_budget_rows",
-            strict: true,
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              required: ["rows"],
-              properties: {
-                rows: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    required: ["postedAt", "description", "amount"],
-                    properties: {
-                      postedAt: { type: "string" },
-                      description: { type: "string" },
-                      amount: {
-                        anyOf: [{ type: "string" }, { type: "number" }],
+    let parsedJson: unknown = null;
+    let lastError: Error | null = null;
+
+    for (const model of modelFallbacks) {
+      try {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model,
+            temperature: 0,
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "normalized_budget_rows",
+                strict: true,
+                schema: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["rows"],
+                  properties: {
+                    rows: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        additionalProperties: false,
+                        required: ["postedAt", "description", "amount"],
+                        properties: {
+                          postedAt: { type: "string" },
+                          description: { type: "string" },
+                          amount: {
+                            anyOf: [{ type: "string" }, { type: "number" }],
+                          },
+                        },
                       },
                     },
                   },
                 },
               },
             },
-          },
-        },
-        messages: [
-          {
-            role: "system",
-            content:
-              "You normalize bank CSV rows for import. Return JSON only. For each row that represents a real transaction, return postedAt (YYYY-MM-DD), description, and signed amount. Expenses must be negative, income positive. Skip non-transaction rows. Never invent transactions.",
-          },
-          {
-            role: "user",
-            content: JSON.stringify({
-              headers: args.headers,
-              rows: chunk,
-            }),
-          },
-        ],
-      }),
-    });
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You normalize bank CSV rows for import. Return JSON only. For each row that represents a real transaction, return postedAt (YYYY-MM-DD), description, and signed amount. Expenses must be negative, income positive. Skip non-transaction rows. Never invent transactions.",
+              },
+              {
+                role: "user",
+                content: JSON.stringify({
+                  headers: args.headers,
+                  rows: chunk,
+                }),
+              },
+            ],
+          }),
+        });
 
-    if (!response.ok) {
-      throw new Error(`openai_csv_parse_failed_${response.status}`);
+        if (!response.ok) {
+          throw new Error(`openai_csv_parse_failed_${response.status}`);
+        }
+
+        const payload = (await response.json()) as {
+          choices?: Array<{ message?: { content?: string | null } }>;
+        };
+        const content = payload.choices?.[0]?.message?.content;
+        if (!content) {
+          throw new Error("openai_csv_parse_empty_response");
+        }
+
+        try {
+          parsedJson = JSON.parse(content);
+        } catch {
+          throw new Error("openai_csv_parse_invalid_json");
+        }
+        lastError = null;
+        break;
+      } catch (error: unknown) {
+        const currentError = error instanceof Error ? error : new Error("openai_csv_parse_failed");
+        lastError = currentError;
+        const retryable = /openai_csv_parse_failed_(400|404|422)/.test(currentError.message);
+        if (!retryable) {
+          throw currentError;
+        }
+      }
     }
 
-    const payload = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string | null } }>;
-    };
-    const content = payload.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("openai_csv_parse_empty_response");
-    }
-
-    let parsedJson: unknown;
-    try {
-      parsedJson = JSON.parse(content);
-    } catch {
-      throw new Error("openai_csv_parse_invalid_json");
+    if (lastError) {
+      throw lastError;
     }
 
     const aiRows = parseAiRows(parsedJson);
