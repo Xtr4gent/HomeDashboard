@@ -28,7 +28,7 @@ export type RecurringInsight = {
   estimatedNextDate: string | null;
 };
 
-function parseCsvLine(line: string): string[] {
+function parseCsvLine(line: string, delimiter: string): string[] {
   const cells: string[] = [];
   let current = "";
   let inQuotes = false;
@@ -43,7 +43,7 @@ function parseCsvLine(line: string): string[] {
       inQuotes = !inQuotes;
       continue;
     }
-    if (char === "," && !inQuotes) {
+    if (char === delimiter && !inQuotes) {
       cells.push(current.trim());
       current = "";
       continue;
@@ -54,6 +54,40 @@ function parseCsvLine(line: string): string[] {
   return cells;
 }
 
+function countDelimiter(line: string, delimiter: string): number {
+  let inQuotes = false;
+  let count = 0;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === "\"") {
+      if (inQuotes && line[index + 1] === "\"") {
+        index += 1;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (!inQuotes && char === delimiter) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function detectDelimiter(headerLine: string): string {
+  const candidates = [",", ";", "\t", "|"];
+  let winner = ",";
+  let bestScore = -1;
+  for (const candidate of candidates) {
+    const score = countDelimiter(headerLine, candidate);
+    if (score > bestScore) {
+      winner = candidate;
+      bestScore = score;
+    }
+  }
+  return winner;
+}
+
 export function parseCsv(content: string): ParsedCsvData {
   const lines = content
     .split(/\r?\n/)
@@ -62,9 +96,22 @@ export function parseCsv(content: string): ParsedCsvData {
   if (lines.length === 0) {
     return { headers: [], rows: [] };
   }
-  const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase());
-  const rows = lines.slice(1).map((line) => parseCsvLine(line));
+  const delimiter = detectDelimiter(lines[0]);
+  const headers = parseCsvLine(lines[0], delimiter).map((header) => header.toLowerCase());
+  const rows = lines.slice(1).map((line) => parseCsvLine(line, delimiter));
   return { headers, rows };
+}
+
+function normalizeHeaderKey(raw: string): string {
+  return raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function findHeaderIndex(headers: string[], aliases: string[]): number {
+  const normalizedAliases = aliases.map((alias) => normalizeHeaderKey(alias));
+  return headers.findIndex((header) => {
+    const normalized = normalizeHeaderKey(header);
+    return normalizedAliases.some((alias) => normalized.includes(alias));
+  });
 }
 
 export function parseBudgetAmount(raw: string): number {
@@ -166,11 +213,18 @@ export async function importBudgetCsv(args: {
     throw new Error("CSV is empty.");
   }
 
-  const dateIndex = parsed.headers.findIndex((header) => header.includes("date"));
-  const descriptionIndex = parsed.headers.findIndex((header) => header.includes("description") || header.includes("merchant"));
-  const amountIndex = parsed.headers.findIndex((header) => header === "amount" || header.includes("amount"));
-  const debitIndex = parsed.headers.findIndex((header) => header.includes("debit"));
-  const creditIndex = parsed.headers.findIndex((header) => header.includes("credit"));
+  const dateIndex = findHeaderIndex(parsed.headers, ["date", "transactiondate", "posteddate", "processingdate"]);
+  const descriptionIndex = findHeaderIndex(parsed.headers, [
+    "description",
+    "merchant",
+    "details",
+    "memo",
+    "payee",
+    "narrative",
+  ]);
+  const amountIndex = findHeaderIndex(parsed.headers, ["amount", "transactionamount", "cad", "value"]);
+  const debitIndex = findHeaderIndex(parsed.headers, ["debit", "withdrawal", "moneyout", "charge"]);
+  const creditIndex = findHeaderIndex(parsed.headers, ["credit", "deposit", "moneyin"]);
   if (dateIndex < 0 || descriptionIndex < 0 || (amountIndex < 0 && debitIndex < 0 && creditIndex < 0)) {
     throw new Error("CSV is missing date/description/amount columns.");
   }

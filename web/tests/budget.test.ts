@@ -17,6 +17,12 @@ describe("budget helpers", () => {
     expect(parsed.rows[0]).toEqual(["2026-04-01", "GROCERY, STORE", "-54.25"]);
   });
 
+  test("parses semicolon-delimited csv", () => {
+    const parsed = parseCsv("date;details;withdrawal;deposit\n2026-04-01;Coffee;4.75;\n2026-04-02;Payroll;;2100.00");
+    expect(parsed.headers).toEqual(["date", "details", "withdrawal", "deposit"]);
+    expect(parsed.rows[0]).toEqual(["2026-04-01", "Coffee", "4.75", ""]);
+  });
+
   test("normalizes merchant name for deterministic dedupe", () => {
     expect(normalizeMerchantName("  Uber*Trip #1234  ")).toBe("uber trip 1234");
   });
