@@ -556,11 +556,14 @@ export async function importBudgetCsv(args: {
 
   let importedCount = 0;
   let duplicateCount = 0;
+  const observedMonthCounts = new Map<string, number>();
   const importedMonthCounts = new Map<string, number>();
   for (const row of normalizedRows) {
     const postedAt = row.postedAt;
     const description = row.description;
     const amountCents = row.amountCents;
+    const observedMonthKey = monthKeyFromDate(postedAt);
+    observedMonthCounts.set(observedMonthKey, (observedMonthCounts.get(observedMonthKey) ?? 0) + 1);
     const normalizedMerchant = normalizeMerchantName(description);
     const fingerprint = buildBudgetFingerprint({
       postedAt,
@@ -597,7 +600,9 @@ export async function importBudgetCsv(args: {
   }
 
   const primaryImportedMonthKey =
-    [...importedMonthCounts.entries()].sort((a, b) => b[1] - a[1]).at(0)?.[0] ?? monthKeyFromDate(new Date());
+    [...observedMonthCounts.entries()].sort((a, b) => b[1] - a[1]).at(0)?.[0] ??
+    [...importedMonthCounts.entries()].sort((a, b) => b[1] - a[1]).at(0)?.[0] ??
+    monthKeyFromDate(new Date());
 
   await prisma.budgetImportBatch.update({
     where: { id: batch.id },
