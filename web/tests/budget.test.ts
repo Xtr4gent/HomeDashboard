@@ -1,11 +1,13 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  buildCleanedImportCsv,
   buildBudgetFingerprint,
   normalizeMerchantName,
   parseBudgetAmount,
   parseCsv,
   summarizeBudgetTransactions,
+  toReadableTransactionName,
 } from "@/lib/budget";
 
 describe("budget helpers", () => {
@@ -51,6 +53,31 @@ describe("budget helpers", () => {
 
   test("normalizes merchant name for deterministic dedupe", () => {
     expect(normalizeMerchantName("  Uber*Trip #1234  ")).toBe("uber trip 1234");
+  });
+
+  test("builds cleaned import csv output", () => {
+    const csv = buildCleanedImportCsv([
+      { postedAt: "2026-04-01", description: "GROCERY, STORE", amountCents: -5425 },
+      { postedAt: "2026-04-02", description: "Payroll", amountCents: 210000 },
+    ]);
+    expect(csv).toContain("postedAt,description,amount");
+    expect(csv).toContain('2026-04-01,"GROCERY, STORE",-54.25');
+    expect(csv).toContain("2026-04-02,Payroll,2100.00");
+  });
+
+  test("builds readable transaction names for compact UI labels", () => {
+    expect(
+      toReadableTransactionName({
+        normalizedMerchant: "tim hortons 1234",
+        description: "TIM HORTONS #1234 TORONTO",
+      }),
+    ).toBe("Tim Hortons 1234");
+    expect(
+      toReadableTransactionName({
+        normalizedMerchant: "",
+        description: "PAYPAL *SOME VERY LONG MERCHANT 998877",
+      }),
+    ).toContain("Paypal Some Very Long Merchant");
   });
 
   test("builds stable dedupe fingerprint", () => {

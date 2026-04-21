@@ -1,12 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { cleanBudgetDataWithAiAction, importBudgetCsvAction, logoutAction, saveBudgetTargetAction } from "@/app/actions";
+import {
+  applyBudgetAiSuggestionAction,
+  cleanBudgetDataWithAiAction,
+  dismissBudgetAiSuggestionAction,
+  importBudgetCsvAction,
+  logoutAction,
+  saveBudgetTargetAction,
+} from "@/app/actions";
 import { AiCleanupButton } from "@/app/budget/ai-cleanup-button";
 import { ThemeToggle } from "@/app/components/theme-toggle";
 import { getSession } from "@/lib/auth/session";
 import { getBudgetAiPreflight } from "@/lib/budget-ai";
-import { getBudgetPageData, getLatestImportedBudgetMonthKey } from "@/lib/budget";
+import { getBudgetPageData, getLatestImportedBudgetMonthKey, toReadableTransactionName } from "@/lib/budget";
 import { formatCurrency } from "@/lib/money";
 import { resolveProjectionMonthKey } from "@/lib/projections";
 
@@ -14,9 +21,9 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-type BudgetTab = "overview" | "transactions" | "budgets" | "trends" | "recurring" | "accounts";
+type BudgetTab = "overview" | "transactions" | "budgets" | "trends" | "recurring" | "accounts" | "review";
 
-const BUDGET_TABS: BudgetTab[] = ["overview", "transactions", "budgets", "trends", "recurring", "accounts"];
+const BUDGET_TABS: BudgetTab[] = ["overview", "transactions", "budgets", "trends", "recurring", "accounts", "review"];
 
 function parseMonthParam(rawMonth: string | string[] | undefined): string | undefined {
   if (typeof rawMonth === "string") {
@@ -87,8 +94,11 @@ export default async function BudgetPage({ searchParams }: Props) {
   const duplicateCount = Number(parseStringParam(params.duplicates) ?? "0");
   const aiStatus = parseStringParam(params.aiStatus);
   const aiUpdatedCount = Number(parseStringParam(params.aiUpdated) ?? "0");
+  const aiQueuedCount = Number(parseStringParam(params.aiQueued) ?? "0");
+  const reviewQueuedCount = Number(parseStringParam(params.queued) ?? "0");
   const aiCostCents = Number(parseStringParam(params.aiCostCents) ?? "0");
   const aiError = parseStringParam(params.aiError)?.replaceAll("_", " ");
+  const selectedCleanedBatchId = parseStringParam(params.cleanedBatch);
   const hasError = Boolean(errorCode);
   const readableError = errorCode ? errorCode.replaceAll("_", " ") : "";
   const totalFlow = budgetData.overview.incomeCents + budgetData.overview.expensesCents;
@@ -171,7 +181,8 @@ export default async function BudgetPage({ searchParams }: Props) {
           {successCode === "ai_cleanup" ? (
             <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
               AI cleanup completed. Updated {Number.isFinite(updatedCount) ? updatedCount : 0} transactions. Estimated cost{" "}
-              {formatCurrency(Number.isFinite(costCents) ? costCents : 0)}.
+              {formatCurrency(Number.isFinite(costCents) ? costCents : 0)}.{" "}
+              {reviewQueuedCount > 0 ? `${reviewQueuedCount} rows need your review in the Review tab.` : "No manual review needed."}
             </div>
           ) : null}
           {successCode === "budget_imported" ? (
@@ -179,13 +190,23 @@ export default async function BudgetPage({ searchParams }: Props) {
               CSV imported successfully. Added {Number.isFinite(importedCount) ? importedCount : 0} transactions and skipped{" "}
               {Number.isFinite(duplicateCount) ? duplicateCount : 0} duplicates.{" "}
               {aiStatus === "completed"
-                ? `AI auto-categorized ${Number.isFinite(aiUpdatedCount) ? aiUpdatedCount : 0} rows (est. cost ${formatCurrency(Number.isFinite(aiCostCents) ? aiCostCents : 0)}).`
+                ? `AI auto-categorized ${Number.isFinite(aiUpdatedCount) ? aiUpdatedCount : 0} rows${aiQueuedCount > 0 ? ` and queued ${aiQueuedCount} low-confidence rows for review` : ""} (est. cost ${formatCurrency(Number.isFinite(aiCostCents) ? aiCostCents : 0)}).`
                 : aiStatus === "skipped"
                   ? `AI auto-categorization skipped (${aiError ?? "unknown reason"}).`
                   : aiStatus === "queued"
                     ? "AI auto-categorization is queued."
                     : "AI auto-categorization is disabled."}{" "}
               Showing the imported month automatically.
+            </div>
+          ) : null}
+          {successCode === "ai_review_applied" ? (
+            <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+              Applied AI suggestion. Transaction updated.
+            </div>
+          ) : null}
+          {successCode === "ai_review_dismissed" ? (
+            <div className="rounded-xl border border-slate-500/40 bg-slate-800/40 px-4 py-3 text-sm text-slate-200">
+              Dismissed AI suggestion. No transaction changes were applied.
             </div>
           ) : null}
 
@@ -284,16 +305,36 @@ export default async function BudgetPage({ searchParams }: Props) {
             <h2 className="text-lg font-semibold text-slate-100">Transactions ({budgetData.transactions.length})</h2>
             <ul className="mt-3 space-y-2">
               {budgetData.transactions.slice(0, 120).map((transaction) => (
-                <li key={transaction.id} className="flex items-center justify-between rounded-xl border border-slate-700/80 bg-slate-950/65 px-3 py-3">
-                  <div>
-                    <p className="font-medium text-slate-100">{transaction.description}</p>
-                    <p className="text-xs text-slate-400">
-                      {transaction.postedAt.toISOString().slice(0, 10)} · {transaction.category}
-                    </p>
-                  </div>
-                  <p className={`font-data text-sm font-semibold ${toneForNet(transaction.amountCents)}`}>
-                    {formatSigned(transaction.amountCents)}
-                  </p>
+                <li key={transaction.id} className="rounded-xl border border-slate-700/80 bg-slate-950/65 px-3 py-3">
+                  <details>
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-slate-100">
+                          {toReadableTransactionName({
+                            normalizedMerchant: transaction.normalizedMerchant,
+                            description: transaction.description,
+                          })}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {transaction.postedAt.toISOString().slice(0, 10)} · {transaction.category}
+                        </p>
+                      </div>
+                      <p className={`font-data text-sm font-semibold ${toneForNet(transaction.amountCents)}`}>
+                        {formatSigned(transaction.amountCents)}
+                      </p>
+                    </summary>
+                    <div className="mt-3 rounded-lg border border-slate-800/80 bg-slate-950/80 p-3 text-xs text-slate-300">
+                      <p>
+                        <span className="text-slate-500">Original import name:</span> {transaction.description}
+                      </p>
+                      <p className="mt-1">
+                        <span className="text-slate-500">Cleaned merchant:</span> {transaction.normalizedMerchant || "n/a"}
+                      </p>
+                      <p className="mt-1">
+                        <span className="text-slate-500">Category:</span> {transaction.category}
+                      </p>
+                    </div>
+                  </details>
                 </li>
               ))}
             </ul>
@@ -415,12 +456,106 @@ export default async function BudgetPage({ searchParams }: Props) {
                   <li key={batch.id} className="rounded-xl border border-slate-700/80 bg-slate-950/65 px-3 py-3">
                     <p className="font-medium text-slate-100">{batch.account.name} · {batch.monthKey}</p>
                     <p className="text-xs text-slate-400">
-                      {batch.status} · {batch.importedCount} imported · {batch.duplicateCount} duplicates
+                      {batch.status} · {batch.importedCount} imported · {batch.duplicateCount} duplicates · {batch.cleanedRowCount} cleaned rows
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                      <Link
+                        href={`/budget?month=${encodeURIComponent(monthKey)}&tab=accounts&cleanedBatch=${encodeURIComponent(batch.id)}`}
+                        className="rounded-md border border-slate-700 px-2 py-1 text-slate-200 transition hover:border-slate-500"
+                      >
+                        View cleaned data
+                      </Link>
+                      <Link
+                        href={`/budget/cleaned/${encodeURIComponent(batch.id)}?format=csv`}
+                        className="rounded-md border border-slate-700 px-2 py-1 text-slate-200 transition hover:border-slate-500"
+                      >
+                        Download cleaned CSV
+                      </Link>
+                    </div>
+                    {selectedCleanedBatchId === batch.id ? (
+                      <div className="mt-3 rounded-lg border border-slate-800/80 bg-slate-950/80 p-3">
+                        {Array.isArray(batch.cleanedRowsJson) && batch.cleanedRowsJson.length > 0 ? (
+                          <ul className="max-h-60 space-y-1 overflow-y-auto text-xs text-slate-300">
+                            {batch.cleanedRowsJson.slice(0, 120).map((row, index) => {
+                              if (!row || typeof row !== "object") {
+                                return null;
+                              }
+                              const candidate = row as { postedAt?: unknown; description?: unknown; amountCents?: unknown };
+                              if (
+                                typeof candidate.postedAt !== "string" ||
+                                typeof candidate.description !== "string" ||
+                                typeof candidate.amountCents !== "number"
+                              ) {
+                                return null;
+                              }
+                              return (
+                                <li key={`${batch.id}-${index}`} className="rounded-md border border-slate-800/70 px-2 py-1">
+                                  {candidate.postedAt} · {candidate.description} · {formatSigned(candidate.amountCents)}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="text-xs text-slate-400">Cleaned data unavailable for this historical batch.</p>
+                        )}
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>
             </article>
+          </section>
+        ) : null}
+        {tab === "review" ? (
+          <section className="rounded-2xl border border-slate-700/70 bg-slate-900/75 p-4 sm:p-6">
+            <h2 className="text-lg font-semibold text-slate-100">AI review queue</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Low-confidence suggestions are held here until you accept or dismiss them.
+            </p>
+            {budgetData.pendingSuggestions.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-400">No pending suggestions for {monthKey}.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {budgetData.pendingSuggestions.map((suggestion) => (
+                  <li key={suggestion.id} className="rounded-xl border border-slate-700/80 bg-slate-950/65 px-3 py-3">
+                    <p className="font-medium text-slate-100">
+                      {toReadableTransactionName({
+                        normalizedMerchant: suggestion.suggestedMerchant,
+                        description: suggestion.transaction.description,
+                      })}{" "}
+                      <span className="text-xs text-slate-400">({Math.round(Number(suggestion.confidence) * 100)}% confidence)</span>
+                    </p>
+                    <p className="mt-1 text-xs text-slate-300">
+                      Suggestion: {suggestion.suggestedCategory} · {suggestion.suggestedMerchant}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">AI reason: {suggestion.reason}</p>
+                    <p className="mt-1 text-xs text-slate-500">Original: {suggestion.transaction.description}</p>
+                    <div className="mt-3 flex gap-2">
+                      <form action={applyBudgetAiSuggestionAction}>
+                        <input type="hidden" name="monthKey" value={monthKey} />
+                        <input type="hidden" name="suggestionId" value={suggestion.id} />
+                        <button
+                          type="submit"
+                          className="rounded-lg bg-emerald-300 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:brightness-95"
+                        >
+                          Accept
+                        </button>
+                      </form>
+                      <form action={dismissBudgetAiSuggestionAction}>
+                        <input type="hidden" name="monthKey" value={monthKey} />
+                        <input type="hidden" name="suggestionId" value={suggestion.id} />
+                        <button
+                          type="submit"
+                          className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-400"
+                        >
+                          Dismiss
+                        </button>
+                      </form>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         ) : null}
         </div>

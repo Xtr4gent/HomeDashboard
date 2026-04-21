@@ -102,6 +102,11 @@ const saveBudgetTargetSchema = z.object({
 const cleanBudgetDataWithAiSchema = z.object({
   monthKey: z.string().min(1),
 });
+
+const reviewBudgetAiSuggestionSchema = z.object({
+  suggestionId: z.string().min(1),
+  monthKey: z.string().min(1),
+});
 export async function loginAction(formData: FormData): Promise<void> {
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
@@ -150,7 +155,8 @@ async function logActivity(args: {
     | "month_reopened"
     | "budget_imported"
     | "budget_target_saved"
-    | "budget_transaction_updated";
+    | "budget_transaction_updated"
+    | "budget_ai_suggestion_reviewed";
   actorUsername: string;
   entityType: string;
   entityId?: string;
@@ -189,6 +195,7 @@ async function runBudgetAiCleanupAndLog(args: {
       updatedRows: result.updatedRows,
       skippedRows: result.skippedRows,
       acceptedSuggestions: result.acceptedSuggestions,
+      queuedForReview: result.queuedForReview,
       confidenceThreshold: result.confidenceThreshold,
       promptTokens: result.promptTokens,
       completionTokens: result.completionTokens,
@@ -1128,6 +1135,7 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
   let importRedirectAiStatus = "disabled";
   let importRedirectAiUpdated = "0";
   let importRedirectAiCostCents = "0";
+  let importRedirectAiQueued = "0";
   let importRedirectAiError = "";
   try {
     const result = await importBudgetCsv({
@@ -1165,6 +1173,7 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
         });
         importRedirectAiStatus = "completed";
         importRedirectAiUpdated = String(cleanup.updatedRows);
+        importRedirectAiQueued = String(cleanup.queuedForReview);
         importRedirectAiCostCents = String((result.aiNormalizationCostCents ?? 0) + cleanup.estimatedCostCents);
       } catch (aiError: unknown) {
         importRedirectAiStatus = "skipped";
@@ -1178,7 +1187,7 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
 
   revalidatePath("/budget");
   redirect(
-    `/budget?month=${encodeURIComponent(importRedirectMonthKey)}&tab=transactions&success=${importRedirectSuccess}&imported=${importRedirectImported}&duplicates=${importRedirectDuplicates}&aiStatus=${importRedirectAiStatus}&aiUpdated=${importRedirectAiUpdated}&aiCostCents=${importRedirectAiCostCents}${importRedirectAiError ? `&aiError=${importRedirectAiError}` : ""}`,
+    `/budget?month=${encodeURIComponent(importRedirectMonthKey)}&tab=transactions&success=${importRedirectSuccess}&imported=${importRedirectImported}&duplicates=${importRedirectDuplicates}&aiStatus=${importRedirectAiStatus}&aiUpdated=${importRedirectAiUpdated}&aiQueued=${importRedirectAiQueued}&aiCostCents=${importRedirectAiCostCents}${importRedirectAiError ? `&aiError=${importRedirectAiError}` : ""}`,
   );
 }
 
@@ -1255,6 +1264,101 @@ export async function cleanBudgetDataWithAiAction(formData: FormData): Promise<v
   }
   revalidatePath("/budget");
   redirect(
-    `/budget?month=${encodeURIComponent(monthKey)}&tab=accounts&success=ai_cleanup&updated=${result.updatedRows}&costCents=${result.estimatedCostCents}`,
+    `/budget?month=${encodeURIComponent(monthKey)}&tab=accounts&success=ai_cleanup&updated=${result.updatedRows}&queued=${result.queuedForReview}&costCents=${result.estimatedCostCents}`,
   );
+}
+
+export async function applyBudgetAiSuggestionAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const parsed = reviewBudgetAiSuggestionSchema.safeParse({
+    suggestionId: String(formData.get("suggestionId") ?? ""),
+    monthKey: String(formData.get("monthKey") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/budget?tab=review&error=invalid_ai_review");
+  }
+
+  const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
+  const suggestion = await prisma.budgetAiSuggestion.findUnique({
+    where: { id: parsed.data.suggestionId },
+    include: { transaction: true },
+  });
+  if (!suggestion || suggestion.status !== "pending") {
+    redirect(`/budget?month=${encodeURIComponent(monthKey)}&tab=review&error=ai_review_not_found`);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.budgetTransaction.update({
+      where: { id: suggestion.transactionId },
+      data: {
+        category: suggestion.suggestedCategory,
+        normalizedMerchant: suggestion.suggestedMerchant,
+      },
+    });
+    await tx.budgetAiSuggestion.update({
+      where: { id: suggestion.id },
+      data: {
+        status: "applied",
+        reviewedBy: session.username,
+        reviewedAt: new Date(),
+      },
+    });
+  });
+
+  await logActivity({
+    action: "budget_ai_suggestion_reviewed",
+    actorUsername: session.username,
+    entityType: "budget_ai_suggestion",
+    entityId: suggestion.id,
+    monthKey,
+    summary: "Applied queued AI suggestion",
+    metadata: {
+      decision: "applied",
+      transactionId: suggestion.transactionId,
+    },
+  });
+  revalidatePath("/budget");
+  redirect(`/budget?month=${encodeURIComponent(monthKey)}&tab=review&success=ai_review_applied`);
+}
+
+export async function dismissBudgetAiSuggestionAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const parsed = reviewBudgetAiSuggestionSchema.safeParse({
+    suggestionId: String(formData.get("suggestionId") ?? ""),
+    monthKey: String(formData.get("monthKey") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/budget?tab=review&error=invalid_ai_review");
+  }
+
+  const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
+  const suggestion = await prisma.budgetAiSuggestion.findUnique({
+    where: { id: parsed.data.suggestionId },
+  });
+  if (!suggestion || suggestion.status !== "pending") {
+    redirect(`/budget?month=${encodeURIComponent(monthKey)}&tab=review&error=ai_review_not_found`);
+  }
+
+  await prisma.budgetAiSuggestion.update({
+    where: { id: suggestion.id },
+    data: {
+      status: "dismissed",
+      reviewedBy: session.username,
+      reviewedAt: new Date(),
+    },
+  });
+  await logActivity({
+    action: "budget_ai_suggestion_reviewed",
+    actorUsername: session.username,
+    entityType: "budget_ai_suggestion",
+    entityId: suggestion.id,
+    monthKey,
+    summary: "Dismissed queued AI suggestion",
+    metadata: {
+      decision: "dismissed",
+      transactionId: suggestion.transactionId,
+    },
+  });
+  revalidatePath("/budget");
+  redirect(`/budget?month=${encodeURIComponent(monthKey)}&tab=review&success=ai_review_dismissed`);
 }

@@ -10,6 +10,10 @@ const budgetTargetUpsertMock = vi.fn();
 const activityLogCreateMock = vi.fn();
 const importBudgetCsvMock = vi.fn();
 const cleanBudgetDataWithAiMock = vi.fn();
+const budgetAiSuggestionFindUniqueMock = vi.fn();
+const budgetAiSuggestionUpdateMock = vi.fn();
+const budgetTransactionUpdateMock = vi.fn();
+const prismaTransactionMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
@@ -48,9 +52,17 @@ vi.mock("@/lib/prisma", () => ({
     budgetMonthlyTarget: {
       upsert: budgetTargetUpsertMock,
     },
+    budgetTransaction: {
+      update: budgetTransactionUpdateMock,
+    },
+    budgetAiSuggestion: {
+      findUnique: budgetAiSuggestionFindUniqueMock,
+      update: budgetAiSuggestionUpdateMock,
+    },
     activityLog: {
       create: activityLogCreateMock,
     },
+    $transaction: prismaTransactionMock,
   },
 }));
 
@@ -73,11 +85,28 @@ describe("budget actions", () => {
       updatedRows: 4,
       skippedRows: 8,
       acceptedSuggestions: 5,
+      queuedForReview: 2,
       confidenceThreshold: 0.78,
       promptTokens: 450,
       completionTokens: 210,
       estimatedCostCents: 2,
     });
+    budgetAiSuggestionFindUniqueMock.mockResolvedValue({
+      id: "sug-1",
+      transactionId: "tx-1",
+      status: "pending",
+      suggestedCategory: "transport",
+      suggestedMerchant: "uber trip",
+      transaction: { id: "tx-1" },
+    });
+    budgetAiSuggestionUpdateMock.mockResolvedValue({});
+    budgetTransactionUpdateMock.mockResolvedValue({});
+    prismaTransactionMock.mockImplementation(async (callback: (tx: { budgetTransaction: { update: typeof budgetTransactionUpdateMock }; budgetAiSuggestion: { update: typeof budgetAiSuggestionUpdateMock } }) => Promise<void>) =>
+      callback({
+        budgetTransaction: { update: budgetTransactionUpdateMock },
+        budgetAiSuggestion: { update: budgetAiSuggestionUpdateMock },
+      }),
+    );
   });
 
   test("saveBudgetTargetAction upserts month/category target and revalidates", async () => {
@@ -124,7 +153,7 @@ describe("budget actions", () => {
     formData.set("csvFile", new File(["date,description,amount\n2025-10-22,RANI,-223.55"], "sample.csv", { type: "text/csv" }));
 
     await expect(importBudgetCsvAction(formData)).rejects.toThrow(
-      "REDIRECT:/budget?month=2025-10&tab=transactions&success=budget_imported&imported=2&duplicates=1&aiStatus=disabled&aiUpdated=0&aiCostCents=0",
+      "REDIRECT:/budget?month=2025-10&tab=transactions&success=budget_imported&imported=2&duplicates=1&aiStatus=disabled&aiUpdated=0&aiQueued=0&aiCostCents=0",
     );
     expect(importBudgetCsvMock).toHaveBeenCalled();
     expect(revalidatePathMock).toHaveBeenCalledWith("/budget");
@@ -137,6 +166,7 @@ describe("budget actions", () => {
       updatedRows: 3,
       skippedRows: 2,
       acceptedSuggestions: 3,
+      queuedForReview: 1,
       confidenceThreshold: 0.78,
       promptTokens: 120,
       completionTokens: 80,
@@ -158,7 +188,7 @@ describe("budget actions", () => {
     formData.set("csvFile", new File(["date,description,amount\n2025-10-22,RANI,-223.55"], "sample.csv", { type: "text/csv" }));
 
     await expect(importBudgetCsvAction(formData)).rejects.toThrow(
-      "REDIRECT:/budget?month=2025-10&tab=transactions&success=budget_imported&imported=5&duplicates=0&aiStatus=completed&aiUpdated=3&aiCostCents=3",
+      "REDIRECT:/budget?month=2025-10&tab=transactions&success=budget_imported&imported=5&duplicates=0&aiStatus=completed&aiUpdated=3&aiQueued=1&aiCostCents=3",
     );
     expect(cleanBudgetDataWithAiMock).toHaveBeenCalledWith({ monthKey: "2025-10" });
   });
@@ -169,7 +199,7 @@ describe("budget actions", () => {
     formData.set("monthKey", "2026-04");
 
     await expect(cleanBudgetDataWithAiAction(formData)).rejects.toThrow(
-      "REDIRECT:/budget?month=2026-04&tab=accounts&success=ai_cleanup&updated=4&costCents=2",
+      "REDIRECT:/budget?month=2026-04&tab=accounts&success=ai_cleanup&updated=4&queued=2&costCents=2",
     );
     expect(cleanBudgetDataWithAiMock).toHaveBeenCalledWith({ monthKey: "2026-04" });
     expect(revalidatePathMock).toHaveBeenCalledWith("/budget");
@@ -183,6 +213,41 @@ describe("budget actions", () => {
 
     await expect(cleanBudgetDataWithAiAction(formData)).rejects.toThrow(
       "REDIRECT:/budget?month=2026-04&tab=accounts&error=openai_monthly_budget_reached",
+    );
+  });
+
+  test("applyBudgetAiSuggestionAction updates transaction and marks suggestion applied", async () => {
+    const { applyBudgetAiSuggestionAction } = await import("@/app/actions");
+    const formData = new FormData();
+    formData.set("monthKey", "2026-04");
+    formData.set("suggestionId", "sug-1");
+
+    await expect(applyBudgetAiSuggestionAction(formData)).rejects.toThrow(
+      "REDIRECT:/budget?month=2026-04&tab=review&success=ai_review_applied",
+    );
+    expect(budgetTransactionUpdateMock).toHaveBeenCalledWith({
+      where: { id: "tx-1" },
+      data: {
+        category: "transport",
+        normalizedMerchant: "uber trip",
+      },
+    });
+  });
+
+  test("dismissBudgetAiSuggestionAction marks suggestion dismissed", async () => {
+    const { dismissBudgetAiSuggestionAction } = await import("@/app/actions");
+    const formData = new FormData();
+    formData.set("monthKey", "2026-04");
+    formData.set("suggestionId", "sug-1");
+
+    await expect(dismissBudgetAiSuggestionAction(formData)).rejects.toThrow(
+      "REDIRECT:/budget?month=2026-04&tab=review&success=ai_review_dismissed",
+    );
+    expect(budgetAiSuggestionUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "sug-1" },
+        data: expect.objectContaining({ status: "dismissed" }),
+      }),
     );
   });
 });

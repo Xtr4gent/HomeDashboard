@@ -4,6 +4,8 @@ const activityLogFindManyMock = vi.fn();
 const budgetTransactionCountMock = vi.fn();
 const budgetTransactionFindManyMock = vi.fn();
 const budgetTransactionUpdateMock = vi.fn();
+const budgetAiSuggestionUpsertMock = vi.fn();
+const budgetAiSuggestionDeleteManyMock = vi.fn();
 const prismaTransactionMock = vi.fn();
 
 vi.mock("@/lib/env", () => ({
@@ -26,6 +28,10 @@ vi.mock("@/lib/prisma", () => ({
       findMany: budgetTransactionFindManyMock,
       update: budgetTransactionUpdateMock,
     },
+    budgetAiSuggestion: {
+      upsert: budgetAiSuggestionUpsertMock,
+      deleteMany: budgetAiSuggestionDeleteManyMock,
+    },
     $transaction: prismaTransactionMock,
   },
 }));
@@ -33,10 +39,20 @@ vi.mock("@/lib/prisma", () => ({
 describe("budget ai cleanup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    prismaTransactionMock.mockImplementation(async (callback: (tx: { budgetTransaction: { update: typeof budgetTransactionUpdateMock } }) => Promise<void>) =>
+    prismaTransactionMock.mockImplementation(async (callback: (tx: {
+      budgetTransaction: { update: typeof budgetTransactionUpdateMock };
+      budgetAiSuggestion: {
+        upsert: typeof budgetAiSuggestionUpsertMock;
+        deleteMany: typeof budgetAiSuggestionDeleteManyMock;
+      };
+    }) => Promise<void>) =>
       callback({
         budgetTransaction: {
           update: budgetTransactionUpdateMock,
+        },
+        budgetAiSuggestion: {
+          upsert: budgetAiSuggestionUpsertMock,
+          deleteMany: budgetAiSuggestionDeleteManyMock,
         },
       }),
     );
@@ -44,6 +60,8 @@ describe("budget ai cleanup", () => {
     budgetTransactionCountMock.mockResolvedValue(0);
     budgetTransactionFindManyMock.mockResolvedValue([]);
     budgetTransactionUpdateMock.mockResolvedValue(undefined);
+    budgetAiSuggestionUpsertMock.mockResolvedValue(undefined);
+    budgetAiSuggestionDeleteManyMock.mockResolvedValue(undefined);
     vi.stubGlobal("fetch", vi.fn());
   });
 
@@ -80,7 +98,7 @@ describe("budget ai cleanup", () => {
     await expect(cleanBudgetDataWithAi({ monthKey: "2026-04" })).rejects.toThrow("openai_daily_limit_reached");
   });
 
-  test("applies only confident AI suggestions and returns usage-based estimated cost", async () => {
+  test("applies confident suggestions and queues low-confidence ones", async () => {
     const { cleanBudgetDataWithAi } = await import("@/lib/budget-ai");
     activityLogFindManyMock.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     budgetTransactionCountMock.mockResolvedValueOnce(2);
@@ -140,7 +158,8 @@ describe("budget ai cleanup", () => {
 
     expect(result.updatedRows).toBe(1);
     expect(result.acceptedSuggestions).toBe(1);
-    expect(result.skippedRows).toBe(1);
+    expect(result.queuedForReview).toBe(1);
+    expect(result.skippedRows).toBe(0);
     expect(result.estimatedCostCents).toBeGreaterThanOrEqual(1);
     expect(budgetTransactionUpdateMock).toHaveBeenCalledWith({
       where: { id: "tx-1" },
@@ -149,5 +168,15 @@ describe("budget ai cleanup", () => {
         normalizedMerchant: "uber trip",
       },
     });
+    expect(budgetAiSuggestionUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { transactionId: "tx-2" },
+        create: expect.objectContaining({
+          suggestedCategory: "shopping",
+          suggestedMerchant: "misc vendor",
+          status: "pending",
+        }),
+      }),
+    );
   });
 });

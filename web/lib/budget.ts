@@ -29,6 +29,12 @@ export type RecurringInsight = {
   estimatedNextDate: string | null;
 };
 
+export type BudgetCleanedImportRow = {
+  postedAt: string;
+  description: string;
+  amountCents: number;
+};
+
 type NormalizedImportRow = {
   postedAt: Date;
   description: string;
@@ -39,6 +45,19 @@ type AiNormalizationResult = {
   rows: NormalizedImportRow[];
   estimatedCostCents: number;
 };
+
+function escapeCsvCell(value: string): string {
+  if (/[",\n]/.test(value)) {
+    return `"${value.replaceAll("\"", "\"\"")}"`;
+  }
+  return value;
+}
+
+export function buildCleanedImportCsv(rows: BudgetCleanedImportRow[]): string {
+  const header = "postedAt,description,amount";
+  const body = rows.map((row) => `${row.postedAt},${escapeCsvCell(row.description)},${(row.amountCents / 100).toFixed(2)}`);
+  return [header, ...body].join("\n");
+}
 
 function parseCsvLine(line: string, delimiter: string): string[] {
   const cells: string[] = [];
@@ -416,6 +435,31 @@ export function normalizeMerchantName(raw: string): string {
     .trim();
 }
 
+function toTitleCase(raw: string): string {
+  return raw
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+export function toReadableTransactionName(args: { normalizedMerchant: string; description: string }): string {
+  const merchant = args.normalizedMerchant.trim();
+  if (merchant) {
+    return toTitleCase(merchant).slice(0, 64);
+  }
+  const cleaned = args.description
+    .toLowerCase()
+    .replace(/\d{4,}/g, "")
+    .replace(/[^a-zA-Z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) {
+    return "Unknown merchant";
+  }
+  return toTitleCase(cleaned).slice(0, 64);
+}
+
 export function buildBudgetFingerprint(args: {
   postedAt: Date;
   normalizedMerchant: string;
@@ -527,6 +571,12 @@ export async function importBudgetCsv(args: {
     }
   }
 
+  const cleanedRows: BudgetCleanedImportRow[] = normalizedRows.map((row) => ({
+    postedAt: row.postedAt.toISOString().slice(0, 10),
+    description: row.description,
+    amountCents: row.amountCents,
+  }));
+
   const account = await prisma.budgetAccount.upsert({
     where: {
       name_institution: {
@@ -551,6 +601,10 @@ export async function importBudgetCsv(args: {
       monthKey: args.monthKey,
       status: "queued",
       rowCount: parsed.rows.length,
+      cleanedRowCount: cleanedRows.length,
+      aiNormalizationUsed,
+      aiNormalizationCostCents,
+      cleanedRowsJson: cleanedRows,
     },
   });
 
@@ -610,6 +664,10 @@ export async function importBudgetCsv(args: {
       monthKey: primaryImportedMonthKey,
       importedCount,
       duplicateCount,
+      cleanedRowCount: cleanedRows.length,
+      aiNormalizationUsed,
+      aiNormalizationCostCents,
+      cleanedRowsJson: cleanedRows,
       status: "completed",
     },
   });
@@ -620,9 +678,42 @@ export async function importBudgetCsv(args: {
     duplicateCount,
     rowCount: parsed.rows.length,
     importedMonthKey: primaryImportedMonthKey,
+    cleanedRowCount: cleanedRows.length,
     aiNormalizationUsed,
     aiNormalizationCostCents,
   };
+}
+
+export async function getBudgetImportBatchCleanedRows(batchId: string): Promise<BudgetCleanedImportRow[] | null> {
+  const batch = await prisma.budgetImportBatch.findUnique({
+    where: { id: batchId },
+    select: {
+      cleanedRowsJson: true,
+    },
+  });
+  const rows = batch?.cleanedRowsJson;
+  if (!Array.isArray(rows)) {
+    return null;
+  }
+  const parsed: BudgetCleanedImportRow[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") {
+      continue;
+    }
+    const candidate = row as Record<string, unknown>;
+    if (
+      typeof candidate.postedAt === "string" &&
+      typeof candidate.description === "string" &&
+      typeof candidate.amountCents === "number"
+    ) {
+      parsed.push({
+        postedAt: candidate.postedAt,
+        description: candidate.description,
+        amountCents: candidate.amountCents,
+      });
+    }
+  }
+  return parsed;
 }
 
 export async function getLatestImportedBudgetMonthKey(): Promise<string | null> {
@@ -640,7 +731,7 @@ function shiftMonth(monthKey: string, offset: number): string {
 }
 
 export async function getBudgetPageData(monthKey: string) {
-  const [transactions, targets, accounts, batches, allRecent] = await Promise.all([
+  const [transactions, targets, accounts, batches, allRecent, pendingSuggestions] = await Promise.all([
     prisma.budgetTransaction.findMany({
       where: { monthKey },
       orderBy: { postedAt: "desc" },
@@ -661,6 +752,17 @@ export async function getBudgetPageData(monthKey: string) {
     prisma.budgetTransaction.findMany({
       where: { monthKey: { in: [shiftMonth(monthKey, -5), shiftMonth(monthKey, -4), shiftMonth(monthKey, -3), shiftMonth(monthKey, -2), shiftMonth(monthKey, -1), monthKey] } },
       orderBy: { postedAt: "asc" },
+    }),
+    prisma.budgetAiSuggestion.findMany({
+      where: {
+        monthKey,
+        status: "pending",
+      },
+      orderBy: [{ confidence: "asc" }, { createdAt: "desc" }],
+      include: {
+        transaction: true,
+      },
+      take: 200,
     }),
   ]);
 
@@ -748,6 +850,7 @@ export async function getBudgetPageData(monthKey: string) {
     recurring: recurring.slice(0, 12),
     accounts,
     batches,
+    pendingSuggestions,
     categoriesWithoutTargets: [...categoryActuals.keys()].filter(
       (category) => !targets.some((target) => target.category === category),
     ),

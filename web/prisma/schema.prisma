@@ -58,12 +58,19 @@ enum ActivityAction {
   budget_imported
   budget_target_saved
   budget_transaction_updated
+  budget_ai_suggestion_reviewed
 }
 
 enum BudgetImportStatus {
   queued
   completed
   failed
+}
+
+enum BudgetAiSuggestionStatus {
+  pending
+  applied
+  dismissed
 }
 
 model User {
@@ -349,8 +356,12 @@ model BudgetImportBatch {
   monthKey       String
   status         BudgetImportStatus @default(queued)
   rowCount       Int              @default(0)
+  cleanedRowCount Int             @default(0)
   importedCount  Int              @default(0)
   duplicateCount Int              @default(0)
+  aiNormalizationUsed Boolean     @default(false)
+  aiNormalizationCostCents Int    @default(0)
+  cleanedRowsJson Json?
   errorMessage   String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
@@ -375,9 +386,28 @@ model BudgetTransaction {
   updatedAt        DateTime         @updatedAt
   account          BudgetAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
   importBatch      BudgetImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  aiSuggestion     BudgetAiSuggestion?
 
   @@index([monthKey, postedAt])
   @@index([normalizedMerchant, postedAt])
+}
+
+model BudgetAiSuggestion {
+  id                 String                  @id @default(cuid())
+  transactionId      String                  @unique
+  monthKey           String
+  suggestedMerchant  String
+  suggestedCategory  String
+  confidence         Decimal                 @db.Decimal(5, 4)
+  reason             String
+  status             BudgetAiSuggestionStatus @default(pending)
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  transaction        BudgetTransaction       @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([monthKey, status, createdAt])
 }
 
 model BudgetCategoryRule {

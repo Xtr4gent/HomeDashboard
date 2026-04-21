@@ -23,6 +23,7 @@ export type BudgetAiCleanupResult = {
   updatedRows: number;
   skippedRows: number;
   acceptedSuggestions: number;
+  queuedForReview: number;
   confidenceThreshold: number;
   promptTokens: number | null;
   completionTokens: number | null;
@@ -213,6 +214,7 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
       updatedRows: 0,
       skippedRows: 0,
       acceptedSuggestions: 0,
+      queuedForReview: 0,
       confidenceThreshold: CONFIDENCE_THRESHOLD,
       promptTokens: null,
       completionTokens: null,
@@ -245,6 +247,7 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
       updatedRows: 0,
       skippedRows: 0,
       acceptedSuggestions: 0,
+      queuedForReview: 0,
       confidenceThreshold: CONFIDENCE_THRESHOLD,
       promptTokens: null,
       completionTokens: null,
@@ -261,6 +264,7 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
   let acceptedSuggestions = 0;
   let updatedRows = 0;
   let skippedRows = 0;
+  let queuedForReview = 0;
 
   await prisma.$transaction(async (tx) => {
     for (const suggestion of ai.parsed.updates) {
@@ -269,20 +273,47 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
         skippedRows += 1;
         continue;
       }
-      if (suggestion.confidence < CONFIDENCE_THRESHOLD) {
-        skippedRows += 1;
-        continue;
-      }
-
       const sanitizedCategory = sanitizeCategory(suggestion.category);
       const sanitizedMerchant = normalizeMerchantName(suggestion.normalizedMerchant);
       if (!sanitizedCategory || !sanitizedMerchant) {
         skippedRows += 1;
         continue;
       }
+      if (suggestion.confidence < CONFIDENCE_THRESHOLD) {
+        await tx.budgetAiSuggestion.upsert({
+          where: { transactionId: current.id },
+          update: {
+            monthKey: args.monthKey,
+            suggestedMerchant: sanitizedMerchant,
+            suggestedCategory: sanitizedCategory,
+            confidence: suggestion.confidence,
+            reason: suggestion.reason.trim().slice(0, 300),
+            status: "pending",
+            reviewedAt: null,
+            reviewedBy: null,
+          },
+          create: {
+            transactionId: current.id,
+            monthKey: args.monthKey,
+            suggestedMerchant: sanitizedMerchant,
+            suggestedCategory: sanitizedCategory,
+            confidence: suggestion.confidence,
+            reason: suggestion.reason.trim().slice(0, 300),
+            status: "pending",
+          },
+        });
+        queuedForReview += 1;
+        continue;
+      }
 
       acceptedSuggestions += 1;
       const willChange = sanitizedCategory !== current.category || sanitizedMerchant !== current.normalizedMerchant;
+      await tx.budgetAiSuggestion.deleteMany({
+        where: {
+          transactionId: current.id,
+          status: "pending",
+        },
+      });
       if (!willChange) {
         skippedRows += 1;
         continue;
@@ -317,6 +348,7 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
     updatedRows,
     skippedRows,
     acceptedSuggestions,
+    queuedForReview,
     confidenceThreshold: CONFIDENCE_THRESHOLD,
     promptTokens: ai.promptTokens,
     completionTokens: ai.completionTokens,
