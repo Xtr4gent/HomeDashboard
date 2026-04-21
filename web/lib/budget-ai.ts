@@ -70,7 +70,7 @@ export async function getBudgetAiPreflight(monthKey: string): Promise<BudgetAiPr
   const estimatedInputTokens = rowsPlanned * PROMPT_TOKENS_PER_ROW;
   const estimatedOutputTokens = rowsPlanned * COMPLETION_TOKENS_PER_ROW;
   const baselineEstimate = estimateBudgetAiCostCents({
-    model: env.OPENAI_MODEL,
+    model: env.OPENAI_MODEL_ROUTER,
     inputTokens: estimatedInputTokens,
     outputTokens: estimatedOutputTokens,
   });
@@ -79,7 +79,7 @@ export async function getBudgetAiPreflight(monthKey: string): Promise<BudgetAiPr
   const monthlyRemainingCents = Math.max(0, env.OPENAI_BUDGET_CENTS_MONTHLY - usage.spentCentsThisMonth);
 
   return {
-    model: env.OPENAI_MODEL,
+    model: env.OPENAI_MODEL_ROUTER,
     rowsPlanned,
     estimatedInputTokens,
     estimatedOutputTokens,
@@ -256,13 +256,13 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
   }
 
   const ai = await callOpenAiCleanup({
-    model: env.OPENAI_MODEL,
+    model: env.OPENAI_MODEL_ROUTER,
     transactions,
   });
 
   const txById = new Map(transactions.map((tx) => [tx.id, tx]));
   let acceptedSuggestions = 0;
-  let updatedRows = 0;
+  const updatedRows = 0;
   let skippedRows = 0;
   let queuedForReview = 0;
 
@@ -279,66 +279,55 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
         skippedRows += 1;
         continue;
       }
-      if (suggestion.confidence < CONFIDENCE_THRESHOLD) {
-        await tx.budgetAiSuggestion.upsert({
-          where: { transactionId: current.id },
-          update: {
-            monthKey: args.monthKey,
-            suggestedMerchant: sanitizedMerchant,
-            suggestedCategory: sanitizedCategory,
-            confidence: suggestion.confidence,
-            reason: suggestion.reason.trim().slice(0, 300),
-            status: "pending",
-            reviewedAt: null,
-            reviewedBy: null,
-          },
-          create: {
-            transactionId: current.id,
-            monthKey: args.monthKey,
-            suggestedMerchant: sanitizedMerchant,
-            suggestedCategory: sanitizedCategory,
-            confidence: suggestion.confidence,
-            reason: suggestion.reason.trim().slice(0, 300),
-            status: "pending",
-          },
-        });
-        queuedForReview += 1;
-        continue;
-      }
-
-      acceptedSuggestions += 1;
       const willChange = sanitizedCategory !== current.category || sanitizedMerchant !== current.normalizedMerchant;
-      await tx.budgetAiSuggestion.deleteMany({
-        where: {
-          transactionId: current.id,
-          status: "pending",
-        },
-      });
       if (!willChange) {
         skippedRows += 1;
         continue;
       }
-
-      await tx.budgetTransaction.update({
-        where: { id: current.id },
-        data: {
-          category: sanitizedCategory,
-          normalizedMerchant: sanitizedMerchant,
+      await tx.budgetAiSuggestion.upsert({
+        where: { transactionId: current.id },
+        update: {
+          monthKey: args.monthKey,
+          suggestedMerchant: sanitizedMerchant,
+          suggestedCategory: sanitizedCategory,
+          confidence: suggestion.confidence,
+          reason: suggestion.reason.trim().slice(0, 300),
+          status: "pending",
+          reviewedAt: null,
+          reviewedBy: null,
+          suggestionType: "category_suggestion",
+          requiresApproval: true,
+          proposedBy: "categorization_agent",
+        },
+        create: {
+          transactionId: current.id,
+          monthKey: args.monthKey,
+          suggestedMerchant: sanitizedMerchant,
+          suggestedCategory: sanitizedCategory,
+          confidence: suggestion.confidence,
+          reason: suggestion.reason.trim().slice(0, 300),
+          status: "pending",
+          suggestionType: "category_suggestion",
+          requiresApproval: true,
+          proposedBy: "categorization_agent",
         },
       });
-      updatedRows += 1;
+      if (suggestion.confidence >= CONFIDENCE_THRESHOLD) {
+        acceptedSuggestions += 1;
+      }
+      queuedForReview += 1;
     }
   });
 
   const estimatedCostCents =
     ai.promptTokens !== null && ai.completionTokens !== null
       ? estimateBudgetAiCostCents({
-          model: env.OPENAI_MODEL,
+          model: env.OPENAI_MODEL_ROUTER,
           inputTokens: ai.promptTokens,
           outputTokens: ai.completionTokens,
         })
       : estimateBudgetAiCostCents({
-          model: env.OPENAI_MODEL,
+          model: env.OPENAI_MODEL_ROUTER,
           inputTokens: preflight.estimatedInputTokens,
           outputTokens: preflight.estimatedOutputTokens,
         });

@@ -11,6 +11,7 @@ import { clearSession, createSession, getSession } from "@/lib/auth/session";
 import { getClock } from "@/lib/clock";
 import { importBudgetCsv } from "@/lib/budget";
 import { cleanBudgetDataWithAi } from "@/lib/budget-ai";
+import { runBudgetSupervisorTask } from "@/lib/budget-supervisor";
 import { buildScenarioProjectionItems } from "@/lib/planner-builder";
 import { getDashboardData } from "@/lib/dashboard";
 import { toCents } from "@/lib/money";
@@ -103,6 +104,11 @@ const cleanBudgetDataWithAiSchema = z.object({
   monthKey: z.string().min(1),
 });
 
+const runBudgetSupervisorSchema = z.object({
+  monthKey: z.string().min(1),
+  request: z.string().min(1).max(800),
+});
+
 const reviewBudgetAiSuggestionSchema = z.object({
   suggestionId: z.string().min(1),
   monthKey: z.string().min(1),
@@ -156,7 +162,8 @@ async function logActivity(args: {
     | "budget_imported"
     | "budget_target_saved"
     | "budget_transaction_updated"
-    | "budget_ai_suggestion_reviewed";
+    | "budget_ai_suggestion_reviewed"
+    | "budget_supervisor_run";
   actorUsername: string;
   entityType: string;
   entityId?: string;
@@ -1142,6 +1149,7 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
       accountName: parsed.data.accountName,
       institution: parsed.data.institution,
       monthKey,
+      sourceFilename: csvFile.name,
       csvContent,
     });
     importRedirectMonthKey = result.importedMonthKey || monthKey;
@@ -1188,6 +1196,39 @@ export async function importBudgetCsvAction(formData: FormData): Promise<void> {
   revalidatePath("/budget");
   redirect(
     `/budget?month=${encodeURIComponent(importRedirectMonthKey)}&tab=transactions&success=${importRedirectSuccess}&imported=${importRedirectImported}&duplicates=${importRedirectDuplicates}&aiStatus=${importRedirectAiStatus}&aiUpdated=${importRedirectAiUpdated}&aiQueued=${importRedirectAiQueued}&aiCostCents=${importRedirectAiCostCents}${importRedirectAiError ? `&aiError=${importRedirectAiError}` : ""}`,
+  );
+}
+
+export async function runBudgetSupervisorAction(formData: FormData): Promise<void> {
+  const session = await requireSession();
+  const parsed = runBudgetSupervisorSchema.safeParse({
+    monthKey: String(formData.get("monthKey") ?? ""),
+    request: String(formData.get("request") ?? "").trim(),
+  });
+  if (!parsed.success) {
+    redirect("/budget?tab=review&error=invalid_supervisor_request");
+  }
+  const monthKey = resolveProjectionMonthKey(parsed.data.monthKey);
+  const result = await runBudgetSupervisorTask({
+    monthKey,
+    request: parsed.data.request,
+  });
+
+  await logActivity({
+    action: "budget_supervisor_run",
+    actorUsername: session.username,
+    entityType: "budget_supervisor",
+    monthKey,
+    summary: `Supervisor ran intent ${result.intent}`,
+    metadata: {
+      request: parsed.data.request.slice(0, 240),
+      intent: result.intent,
+      proposedActionsCount: result.proposedActions.length,
+    },
+  });
+  revalidatePath("/budget");
+  redirect(
+    `/budget?month=${encodeURIComponent(monthKey)}&tab=review&success=supervisor_done&supIntent=${encodeURIComponent(result.intent)}&supTitle=${encodeURIComponent(result.title)}&supSummary=${encodeURIComponent(result.summary)}`,
   );
 }
 

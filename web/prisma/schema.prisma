@@ -59,6 +59,7 @@ enum ActivityAction {
   budget_target_saved
   budget_transaction_updated
   budget_ai_suggestion_reviewed
+  budget_supervisor_run
 }
 
 enum BudgetImportStatus {
@@ -71,6 +72,19 @@ enum BudgetAiSuggestionStatus {
   pending
   applied
   dismissed
+}
+
+enum BudgetParseStatus {
+  completed
+  partial
+  failed
+}
+
+enum BudgetAiSuggestionType {
+  category_suggestion
+  duplicate_suspicion
+  anomaly_flag
+  rule_creation_suggestion
 }
 
 model User {
@@ -359,6 +373,10 @@ model BudgetImportBatch {
   cleanedRowCount Int             @default(0)
   importedCount  Int              @default(0)
   duplicateCount Int              @default(0)
+  sourceFilename String?
+  sourceUploadedAt DateTime?
+  parserVersion  String?
+  parseStatus    BudgetParseStatus @default(completed)
   aiNormalizationUsed Boolean     @default(false)
   aiNormalizationCostCents Int    @default(0)
   cleanedRowsJson Json?
@@ -400,6 +418,9 @@ model BudgetAiSuggestion {
   suggestedCategory  String
   confidence         Decimal                 @db.Decimal(5, 4)
   reason             String
+  suggestionType     BudgetAiSuggestionType  @default(category_suggestion)
+  requiresApproval   Boolean                 @default(true)
+  proposedBy         String                  @default("categorization_agent")
   status             BudgetAiSuggestionStatus @default(pending)
   reviewedBy         String?
   reviewedAt         DateTime?
@@ -407,7 +428,7 @@ model BudgetAiSuggestion {
   updatedAt          DateTime                @updatedAt
   transaction        BudgetTransaction       @relation(fields: [transactionId], references: [id], onDelete: Cascade)
 
-  @@index([monthKey, status, createdAt])
+  @@index([monthKey, suggestionType, status, createdAt])
 }
 
 model BudgetCategoryRule {

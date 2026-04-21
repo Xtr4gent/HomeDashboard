@@ -193,7 +193,7 @@ function findHeaderIndex(headers: string[], aliases: string[]): number {
 }
 
 function aiModel(): string {
-  return process.env.OPENAI_MODEL || "gpt-4.1-mini";
+  return process.env.OPENAI_MODEL_ROUTER || process.env.OPENAI_MODEL || "gpt-4.1-mini";
 }
 
 function aiKey(): string | null {
@@ -505,6 +505,7 @@ export async function importBudgetCsv(args: {
   accountName: string;
   institution?: string;
   monthKey: string;
+  sourceFilename?: string;
   csvContent: string;
 }) {
   const parsed = parseCsv(args.csvContent);
@@ -601,6 +602,10 @@ export async function importBudgetCsv(args: {
       monthKey: args.monthKey,
       status: "queued",
       rowCount: parsed.rows.length,
+      sourceFilename: args.sourceFilename?.trim() || null,
+      sourceUploadedAt: new Date(),
+      parserVersion: "budget-parser-v1",
+      parseStatus: "completed",
       cleanedRowCount: cleanedRows.length,
       aiNormalizationUsed,
       aiNormalizationCostCents,
@@ -664,6 +669,10 @@ export async function importBudgetCsv(args: {
       monthKey: primaryImportedMonthKey,
       importedCount,
       duplicateCount,
+      sourceFilename: args.sourceFilename?.trim() || null,
+      sourceUploadedAt: new Date(),
+      parserVersion: "budget-parser-v1",
+      parseStatus: "completed",
       cleanedRowCount: cleanedRows.length,
       aiNormalizationUsed,
       aiNormalizationCostCents,
@@ -681,6 +690,47 @@ export async function importBudgetCsv(args: {
     cleanedRowCount: cleanedRows.length,
     aiNormalizationUsed,
     aiNormalizationCostCents,
+  };
+}
+
+export function calculateMonthCoverage(args: {
+  transactionCount: number;
+  uncategorizedCount: number;
+}): number {
+  if (args.transactionCount <= 0) {
+    return 100;
+  }
+  const categorizedCount = Math.max(0, args.transactionCount - args.uncategorizedCount);
+  return Math.round((categorizedCount / args.transactionCount) * 100);
+}
+
+export function calculateDeterministicCashOutlook(args: {
+  monthKey: string;
+  incomeCents: number;
+  expensesCents: number;
+}): {
+  knownNetCents: number;
+  projectedMonthEndNetCents: number;
+  assumptions: string[];
+} {
+  const [yearText, monthText] = args.monthKey.split("-");
+  const year = Number(yearText);
+  const monthIndex = Number(monthText) - 1;
+  const now = new Date();
+  const monthEnd = new Date(Date.UTC(year, monthIndex + 1, 0));
+  const dayCount = monthEnd.getUTCDate();
+  const todayDay = Math.min(dayCount, now.getUTCDate());
+  const elapsedDays = Math.max(1, todayDay);
+  const daysRemaining = Math.max(0, dayCount - elapsedDays);
+  const knownNetCents = args.incomeCents - args.expensesCents;
+  const averageDailyNet = Math.round(knownNetCents / elapsedDays);
+  return {
+    knownNetCents,
+    projectedMonthEndNetCents: knownNetCents + averageDailyNet * daysRemaining,
+    assumptions: [
+      `Known net uses imported rows only for ${args.monthKey}.`,
+      "Projected month-end assumes daily net trend continues linearly for remaining days.",
+    ],
   };
 }
 
@@ -767,6 +817,15 @@ export async function getBudgetPageData(monthKey: string) {
   ]);
 
   const overview = summarizeBudgetTransactions(transactions);
+  const coveragePct = calculateMonthCoverage({
+    transactionCount: overview.transactionCount,
+    uncategorizedCount: overview.uncategorizedCount,
+  });
+  const cashOutlook = calculateDeterministicCashOutlook({
+    monthKey,
+    incomeCents: overview.incomeCents,
+    expensesCents: overview.expensesCents,
+  });
   const categoryActuals = new Map<string, number>();
   for (const transaction of transactions) {
     if (transaction.amountCents >= 0) {
@@ -851,6 +910,8 @@ export async function getBudgetPageData(monthKey: string) {
     accounts,
     batches,
     pendingSuggestions,
+    coveragePct,
+    cashOutlook,
     categoriesWithoutTargets: [...categoryActuals.keys()].filter(
       (category) => !targets.some((target) => target.category === category),
     ),

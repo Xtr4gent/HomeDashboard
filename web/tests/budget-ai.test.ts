@@ -98,7 +98,7 @@ describe("budget ai cleanup", () => {
     await expect(cleanBudgetDataWithAi({ monthKey: "2026-04" })).rejects.toThrow("openai_daily_limit_reached");
   });
 
-  test("applies confident suggestions and queues low-confidence ones", async () => {
+  test("queues suggestions and requires manual approval for all changes", async () => {
     const { cleanBudgetDataWithAi } = await import("@/lib/budget-ai");
     activityLogFindManyMock.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     budgetTransactionCountMock.mockResolvedValueOnce(2);
@@ -156,18 +156,12 @@ describe("budget ai cleanup", () => {
 
     const result = await cleanBudgetDataWithAi({ monthKey: "2026-04" });
 
-    expect(result.updatedRows).toBe(1);
+    expect(result.updatedRows).toBe(0);
     expect(result.acceptedSuggestions).toBe(1);
-    expect(result.queuedForReview).toBe(1);
+    expect(result.queuedForReview).toBe(2);
     expect(result.skippedRows).toBe(0);
     expect(result.estimatedCostCents).toBeGreaterThanOrEqual(1);
-    expect(budgetTransactionUpdateMock).toHaveBeenCalledWith({
-      where: { id: "tx-1" },
-      data: {
-        category: "transport",
-        normalizedMerchant: "uber trip",
-      },
-    });
+    expect(budgetTransactionUpdateMock).not.toHaveBeenCalled();
     expect(budgetAiSuggestionUpsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { transactionId: "tx-2" },
@@ -176,6 +170,11 @@ describe("budget ai cleanup", () => {
           suggestedMerchant: "misc vendor",
           status: "pending",
         }),
+      }),
+    );
+    expect(budgetAiSuggestionUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { transactionId: "tx-1" },
       }),
     );
   });

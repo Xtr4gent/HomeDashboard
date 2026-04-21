@@ -7,6 +7,7 @@ import {
   dismissBudgetAiSuggestionAction,
   importBudgetCsvAction,
   logoutAction,
+  runBudgetSupervisorAction,
   saveBudgetTargetAction,
 } from "@/app/actions";
 import { AiCleanupButton } from "@/app/budget/ai-cleanup-button";
@@ -98,6 +99,9 @@ export default async function BudgetPage({ searchParams }: Props) {
   const reviewQueuedCount = Number(parseStringParam(params.queued) ?? "0");
   const aiCostCents = Number(parseStringParam(params.aiCostCents) ?? "0");
   const aiError = parseStringParam(params.aiError)?.replaceAll("_", " ");
+  const supervisorIntent = parseStringParam(params.supIntent);
+  const supervisorTitle = parseStringParam(params.supTitle);
+  const supervisorSummary = parseStringParam(params.supSummary);
   const selectedCleanedBatchId = parseStringParam(params.cleanedBatch);
   const hasError = Boolean(errorCode);
   const readableError = errorCode ? errorCode.replaceAll("_", " ") : "";
@@ -207,6 +211,11 @@ export default async function BudgetPage({ searchParams }: Props) {
           {successCode === "ai_review_dismissed" ? (
             <div className="rounded-xl border border-slate-500/40 bg-slate-800/40 px-4 py-3 text-sm text-slate-200">
               Dismissed AI suggestion. No transaction changes were applied.
+            </div>
+          ) : null}
+          {successCode === "supervisor_done" ? (
+            <div className="rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 py-3 text-sm text-violet-100">
+              Supervisor completed {supervisorIntent?.replaceAll("_", " ") ?? "request"}.
             </div>
           ) : null}
 
@@ -512,6 +521,30 @@ export default async function BudgetPage({ searchParams }: Props) {
             <p className="mt-2 text-sm text-slate-400">
               Low-confidence suggestions are held here until you accept or dismiss them.
             </p>
+            <div className="mt-4 rounded-xl border border-slate-700/80 bg-slate-950/65 p-4">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Supervisor</p>
+              <form action={runBudgetSupervisorAction} className="mt-2 grid gap-2">
+                <input type="hidden" name="monthKey" value={monthKey} />
+                <textarea
+                  name="request"
+                  required
+                  placeholder="Ask: What changed this month? / Show unknown merchants / Cash outlook until payday"
+                  className="min-h-20 rounded-xl border border-slate-600 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 focus:border-violet-300 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="w-fit rounded-xl bg-gradient-to-r from-violet-300 to-fuchsia-300 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:brightness-95"
+                >
+                  Run Supervisor
+                </button>
+              </form>
+              {supervisorTitle && supervisorSummary ? (
+                <div className="mt-3 rounded-lg border border-slate-800/80 bg-slate-950/80 p-3">
+                  <p className="text-sm font-semibold text-slate-100">{supervisorTitle}</p>
+                  <p className="mt-1 text-sm text-slate-300">{supervisorSummary}</p>
+                </div>
+              ) : null}
+            </div>
             {budgetData.pendingSuggestions.length === 0 ? (
               <p className="mt-3 text-sm text-slate-400">No pending suggestions for {monthKey}.</p>
             ) : (

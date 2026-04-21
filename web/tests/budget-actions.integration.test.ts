@@ -10,6 +10,7 @@ const budgetTargetUpsertMock = vi.fn();
 const activityLogCreateMock = vi.fn();
 const importBudgetCsvMock = vi.fn();
 const cleanBudgetDataWithAiMock = vi.fn();
+const runBudgetSupervisorTaskMock = vi.fn();
 const budgetAiSuggestionFindUniqueMock = vi.fn();
 const budgetAiSuggestionUpdateMock = vi.fn();
 const budgetTransactionUpdateMock = vi.fn();
@@ -45,6 +46,10 @@ vi.mock("@/lib/budget", () => ({
 
 vi.mock("@/lib/budget-ai", () => ({
   cleanBudgetDataWithAi: cleanBudgetDataWithAiMock,
+}));
+
+vi.mock("@/lib/budget-supervisor", () => ({
+  runBudgetSupervisorTask: runBudgetSupervisorTaskMock,
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -90,6 +95,13 @@ describe("budget actions", () => {
       promptTokens: 450,
       completionTokens: 210,
       estimatedCostCents: 2,
+    });
+    runBudgetSupervisorTaskMock.mockResolvedValue({
+      intent: "monthly_summary",
+      title: "Monthly supervised summary",
+      summary: "Your month is stable but review queue remains.",
+      assumptions: ["Coverage is 80%."],
+      proposedActions: ["Review pending queue"],
     });
     budgetAiSuggestionFindUniqueMock.mockResolvedValue({
       id: "sug-1",
@@ -249,5 +261,20 @@ describe("budget actions", () => {
         data: expect.objectContaining({ status: "dismissed" }),
       }),
     );
+  });
+
+  test("runBudgetSupervisorAction redirects with supervisor payload", async () => {
+    const { runBudgetSupervisorAction } = await import("@/app/actions");
+    const formData = new FormData();
+    formData.set("monthKey", "2026-04");
+    formData.set("request", "what changed this month?");
+
+    await expect(runBudgetSupervisorAction(formData)).rejects.toThrow(
+      "REDIRECT:/budget?month=2026-04&tab=review&success=supervisor_done&supIntent=monthly_summary&supTitle=Monthly%20supervised%20summary&supSummary=Your%20month%20is%20stable%20but%20review%20queue%20remains.",
+    );
+    expect(runBudgetSupervisorTaskMock).toHaveBeenCalledWith({
+      monthKey: "2026-04",
+      request: "what changed this month?",
+    });
   });
 });

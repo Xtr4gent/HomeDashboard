@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  calculateDeterministicCashOutlook,
+  calculateMonthCoverage,
   buildCleanedImportCsv,
   buildBudgetFingerprint,
   normalizeMerchantName,
@@ -110,5 +112,20 @@ describe("budget helpers", () => {
       transactionCount: 3,
       uncategorizedCount: 1,
     });
+  });
+
+  test("reports deterministic month coverage", () => {
+    expect(calculateMonthCoverage({ transactionCount: 10, uncategorizedCount: 2 })).toBe(80);
+    expect(calculateMonthCoverage({ transactionCount: 0, uncategorizedCount: 0 })).toBe(100);
+  });
+
+  test("projects deterministic cash outlook from known net trend", () => {
+    const result = calculateDeterministicCashOutlook({
+      monthKey: "2026-04",
+      incomeCents: 600000,
+      expensesCents: 450000,
+    });
+    expect(result.knownNetCents).toBe(150000);
+    expect(result.assumptions.length).toBeGreaterThan(0);
   });
 });

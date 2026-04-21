@@ -21,6 +21,8 @@ const MODEL_PRICING: Record<string, AiPricing> = {
   "gpt-4.1": { inputUsdPerMillion: 2, outputUsdPerMillion: 8 },
   "gpt-4o-mini": { inputUsdPerMillion: 0.15, outputUsdPerMillion: 0.6 },
   "gpt-4o": { inputUsdPerMillion: 2.5, outputUsdPerMillion: 10 },
+  "gpt-5.4-nano": DEFAULT_PRICING,
+  "gpt-5.4-mini": DEFAULT_PRICING,
 };
 
 function monthStartUtc(now: Date): Date {
