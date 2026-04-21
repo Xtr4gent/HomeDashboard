@@ -11,6 +11,7 @@ import {
   saveBudgetTargetAction,
 } from "@/app/actions";
 import { AiCleanupButton } from "@/app/budget/ai-cleanup-button";
+import { ImportCsvForm } from "@/app/budget/import-csv-form";
 import { ThemeToggle } from "@/app/components/theme-toggle";
 import { getSession } from "@/lib/auth/session";
 import { getBudgetAiPreflight } from "@/lib/budget-ai";
@@ -426,33 +427,7 @@ export default async function BudgetPage({ searchParams }: Props) {
           <section className="grid gap-6 lg:grid-cols-2">
             <article className="rounded-2xl border border-slate-700/70 bg-slate-900/75 p-4 sm:p-6">
               <h2 className="text-lg font-semibold text-slate-100">Import CSV</h2>
-              <form action={importBudgetCsvAction} className="mt-3 grid gap-2">
-                <input type="hidden" name="monthKey" value={monthKey} />
-                <input
-                  name="accountName"
-                  placeholder="Account name (Joint Chequing)"
-                  defaultValue="Joint Chequing"
-                  className="rounded-xl border border-slate-600 bg-slate-950/80 px-3 py-2 text-slate-100 focus:border-cyan-300 focus:outline-none"
-                />
-                <input
-                  name="institution"
-                  placeholder="Institution (optional)"
-                  className="rounded-xl border border-slate-600 bg-slate-950/80 px-3 py-2 text-slate-100 focus:border-cyan-300 focus:outline-none"
-                />
-                <input
-                  type="file"
-                  name="csvFile"
-                  accept=".csv,text/csv"
-                  className="rounded-xl border border-slate-600 bg-slate-950/80 px-3 py-2 text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-100 hover:file:bg-slate-700"
-                />
-                <label className="flex items-center gap-2 text-xs text-slate-300">
-                  <input type="checkbox" name="autoCategorize" defaultChecked className="h-4 w-4 accent-cyan-300" />
-                  Auto-categorize uncategorized rows after import using AI
-                </label>
-                <button type="submit" className="rounded-xl bg-gradient-to-r from-cyan-300 to-blue-300 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:brightness-95">
-                  Import transactions
-                </button>
-              </form>
+              <ImportCsvForm monthKey={monthKey} action={importBudgetCsvAction} />
               <div className="mt-3">
                 <AiCleanupButton monthKey={monthKey} preflight={aiPreflight} action={cleanBudgetDataWithAiAction} />
               </div>

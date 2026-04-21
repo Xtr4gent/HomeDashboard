@@ -13,6 +13,7 @@ const cleanBudgetDataWithAiMock = vi.fn();
 const runBudgetSupervisorTaskMock = vi.fn();
 const budgetAiSuggestionFindUniqueMock = vi.fn();
 const budgetAiSuggestionUpdateMock = vi.fn();
+const budgetCategoryRuleUpsertMock = vi.fn();
 const budgetTransactionUpdateMock = vi.fn();
 const prismaTransactionMock = vi.fn();
 
@@ -64,6 +65,9 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: budgetAiSuggestionFindUniqueMock,
       update: budgetAiSuggestionUpdateMock,
     },
+    budgetCategoryRule: {
+      upsert: budgetCategoryRuleUpsertMock,
+    },
     activityLog: {
       create: activityLogCreateMock,
     },
@@ -112,11 +116,17 @@ describe("budget actions", () => {
       transaction: { id: "tx-1" },
     });
     budgetAiSuggestionUpdateMock.mockResolvedValue({});
+    budgetCategoryRuleUpsertMock.mockResolvedValue({});
     budgetTransactionUpdateMock.mockResolvedValue({});
-    prismaTransactionMock.mockImplementation(async (callback: (tx: { budgetTransaction: { update: typeof budgetTransactionUpdateMock }; budgetAiSuggestion: { update: typeof budgetAiSuggestionUpdateMock } }) => Promise<void>) =>
+    prismaTransactionMock.mockImplementation(async (callback: (tx: {
+      budgetTransaction: { update: typeof budgetTransactionUpdateMock };
+      budgetAiSuggestion: { update: typeof budgetAiSuggestionUpdateMock };
+      budgetCategoryRule: { upsert: typeof budgetCategoryRuleUpsertMock };
+    }) => Promise<void>) =>
       callback({
         budgetTransaction: { update: budgetTransactionUpdateMock },
         budgetAiSuggestion: { update: budgetAiSuggestionUpdateMock },
+        budgetCategoryRule: { upsert: budgetCategoryRuleUpsertMock },
       }),
     );
   });
@@ -244,6 +254,16 @@ describe("budget actions", () => {
         normalizedMerchant: "uber trip",
       },
     });
+    expect(budgetCategoryRuleUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          matchText_category: {
+            matchText: "uber trip",
+            category: "transport",
+          },
+        },
+      }),
+    );
   });
 
   test("dismissBudgetAiSuggestionAction marks suggestion dismissed", async () => {

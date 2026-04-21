@@ -190,6 +190,9 @@ async function runBudgetAiCleanupAndLog(args: {
   source: "ai_cleanup" | "ai_import_autocategorize";
 }): Promise<Awaited<ReturnType<typeof cleanBudgetDataWithAi>>> {
   const result = await cleanBudgetDataWithAi({ monthKey: args.monthKey });
+  if (result.scannedRows === 0) {
+    return result;
+  }
   await logActivity({
     action: "budget_transaction_updated",
     actorUsername: args.actorUsername,
@@ -1336,6 +1339,30 @@ export async function applyBudgetAiSuggestionAction(formData: FormData): Promise
         normalizedMerchant: suggestion.suggestedMerchant,
       },
     });
+    const ruleMatchText = suggestion.suggestedMerchant
+      .toLowerCase()
+      .replace(/\b\d+\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 60);
+    if (ruleMatchText.length >= 3) {
+      await tx.budgetCategoryRule.upsert({
+        where: {
+          matchText_category: {
+            matchText: ruleMatchText,
+            category: suggestion.suggestedCategory,
+          },
+        },
+        update: {
+          priority: 40,
+        },
+        create: {
+          matchText: ruleMatchText,
+          category: suggestion.suggestedCategory,
+          priority: 40,
+        },
+      });
+    }
     await tx.budgetAiSuggestion.update({
       where: { id: suggestion.id },
       data: {

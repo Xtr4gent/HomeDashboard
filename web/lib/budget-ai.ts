@@ -33,6 +33,7 @@ export type BudgetAiCleanupResult = {
 const PROMPT_TOKENS_PER_ROW = 42;
 const COMPLETION_TOKENS_PER_ROW = 24;
 const CONFIDENCE_THRESHOLD = 0.78;
+const AUTO_APPLY_THRESHOLD = 0.84;
 
 const aiCleanupSchema = z.object({
   updates: z.array(
@@ -53,6 +54,15 @@ function sanitizeCategory(raw: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 40);
+}
+
+function toRuleMatchText(rawMerchant: string): string {
+  return rawMerchant
+    .toLowerCase()
+    .replace(/\b\d+\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
 }
 
 export async function getBudgetAiPreflight(monthKey: string): Promise<BudgetAiPreflight> {
@@ -262,7 +272,7 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
 
   const txById = new Map(transactions.map((tx) => [tx.id, tx]));
   let acceptedSuggestions = 0;
-  const updatedRows = 0;
+  let updatedRows = 0;
   let skippedRows = 0;
   let queuedForReview = 0;
 
@@ -281,6 +291,47 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
       }
       const willChange = sanitizedCategory !== current.category || sanitizedMerchant !== current.normalizedMerchant;
       if (!willChange) {
+        skippedRows += 1;
+        continue;
+      }
+      if (suggestion.confidence >= AUTO_APPLY_THRESHOLD) {
+        await tx.budgetTransaction.update({
+          where: { id: current.id },
+          data: {
+            category: sanitizedCategory,
+            normalizedMerchant: sanitizedMerchant,
+          },
+        });
+        await tx.budgetAiSuggestion.deleteMany({
+          where: {
+            transactionId: current.id,
+            status: "pending",
+          },
+        });
+        const ruleMatchText = toRuleMatchText(sanitizedMerchant);
+        if (ruleMatchText.length >= 3) {
+          await tx.budgetCategoryRule.upsert({
+            where: {
+              matchText_category: {
+                matchText: ruleMatchText,
+                category: sanitizedCategory,
+              },
+            },
+            update: {
+              priority: 30,
+            },
+            create: {
+              matchText: ruleMatchText,
+              category: sanitizedCategory,
+              priority: 30,
+            },
+          });
+        }
+        acceptedSuggestions += 1;
+        updatedRows += 1;
+        continue;
+      }
+      if (suggestion.confidence < CONFIDENCE_THRESHOLD) {
         skippedRows += 1;
         continue;
       }
@@ -312,9 +363,6 @@ export async function cleanBudgetDataWithAi(args: { monthKey: string }): Promise
           proposedBy: "categorization_agent",
         },
       });
-      if (suggestion.confidence >= CONFIDENCE_THRESHOLD) {
-        acceptedSuggestions += 1;
-      }
       queuedForReview += 1;
     }
   });
