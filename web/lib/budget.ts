@@ -516,17 +516,18 @@ export async function importBudgetCsv(args: {
     importedCount += 1;
   }
 
+  const primaryImportedMonthKey =
+    [...importedMonthCounts.entries()].sort((a, b) => b[1] - a[1]).at(0)?.[0] ?? monthKeyFromDate(new Date());
+
   await prisma.budgetImportBatch.update({
     where: { id: batch.id },
     data: {
+      monthKey: primaryImportedMonthKey,
       importedCount,
       duplicateCount,
       status: "completed",
     },
   });
-
-  const primaryImportedMonthKey =
-    [...importedMonthCounts.entries()].sort((a, b) => b[1] - a[1]).at(0)?.[0] ?? monthKeyFromDate(new Date());
 
   return {
     batchId: batch.id,
@@ -535,6 +536,14 @@ export async function importBudgetCsv(args: {
     rowCount: parsed.rows.length,
     importedMonthKey: primaryImportedMonthKey,
   };
+}
+
+export async function getLatestImportedBudgetMonthKey(): Promise<string | null> {
+  const latestTransaction = await prisma.budgetTransaction.findFirst({
+    orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
+    select: { monthKey: true },
+  });
+  return latestTransaction?.monthKey ?? null;
 }
 
 function shiftMonth(monthKey: string, offset: number): string {

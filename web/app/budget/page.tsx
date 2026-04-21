@@ -6,7 +6,7 @@ import { AiCleanupButton } from "@/app/budget/ai-cleanup-button";
 import { ThemeToggle } from "@/app/components/theme-toggle";
 import { getSession } from "@/lib/auth/session";
 import { getBudgetAiPreflight } from "@/lib/budget-ai";
-import { getBudgetPageData } from "@/lib/budget";
+import { getBudgetPageData, getLatestImportedBudgetMonthKey } from "@/lib/budget";
 import { formatCurrency } from "@/lib/money";
 import { resolveProjectionMonthKey } from "@/lib/projections";
 
@@ -74,7 +74,9 @@ export default async function BudgetPage({ searchParams }: Props) {
   }
 
   const params = await searchParams;
-  const monthKey = resolveProjectionMonthKey(parseMonthParam(params.month));
+  const requestedMonthKey = parseMonthParam(params.month);
+  const fallbackMonthKey = requestedMonthKey ? null : await getLatestImportedBudgetMonthKey();
+  const monthKey = resolveProjectionMonthKey(requestedMonthKey ?? fallbackMonthKey ?? undefined);
   const tab = parseTabParam(params.tab);
   const [budgetData, aiPreflight] = await Promise.all([getBudgetPageData(monthKey), getBudgetAiPreflight(monthKey)]);
   const errorCode = parseStringParam(params.error);
